@@ -15,7 +15,10 @@
  */
 package org.powertac.samplebroker;
 
+import java.awt.List;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Random;
 
 import org.apache.logging.log4j.Logger;
@@ -211,6 +214,7 @@ implements MarketManager, Initializable, Activatable
       }
     }
     meanMarketPrice = totalValue / totalUsage;
+    System.out.println("Calculated bootstrap data");
   }
 
   /**
@@ -280,33 +284,93 @@ implements MarketManager, Initializable, Activatable
   {
     double neededKWh = 0.0;
     log.debug("Current timeslot is " + timeslotRepo.currentTimeslot().getSerialNumber());
+    System.out.println("=========== \n Current timeslot is " + timeslotRepo.currentTimeslot().getSerialNumber());
     for (Timeslot timeslot : timeslotRepo.enabledTimeslots()) {
+      printAboutTimeslot(timeslot);
+//      System.out.println("usage record lentgh: " + broker.getUsageRecordLength());
       int index = (timeslot.getSerialNumber()) % broker.getUsageRecordLength();
+      System.out.print("  Index: "+ index);
       neededKWh = portfolioManager.collectUsage(index);
-      submitOrder(neededKWh, timeslot.getSerialNumber());
+      System.out.print(" needed KWH: "+ neededKWh);
+      submitBidMCTS(neededKWh,timeslotRepo.currentTimeslot().getSerialNumber(), timeslot.getSerialNumber());
+ 
     }
+    
   }
-
+  void printAboutTimeslot(Timeslot t) {
+	  System.out.print("Timeslot serial: "+ t.getSerialNumber());
+//	  System.out.println("time of day"+ t.slotInDay());
+//	  System.out.println("day of week"+ t.dayOfWeek());
+//	  System.out.println("stat time"+ t.getStartTime());
+//	  System.out.println("stat instant"+ t.getStartInstant());
+//	  System.out.println("stat instant"+ t.getEndInstant());
+//	  System.out.println(" ");
+  }
+  
+  
+  /**MCTS VARIABLES BELOW
+   * 
+   */
+  public static int MAX_ITERATIONS = 10;
+  public static int NUM_OF_ACTIONS = 3;
+  
+  
+  // A Node 
+  public class Node{
+	  public int actionID;
+	  public int visitCount;
+	  public int hoursAhead;
+	  public double avgUnitCost;
+	  public Node parent;
+	  public ArrayList<Node> children;
+	  
+	  public Node(int id, Node parent,int visitcount,int hoursAhead) {
+		  this.actionID = id;
+		  this.parent = parent;
+		  this.visitCount = visitcount;
+		  this.hoursAhead = hoursAhead; 
+		  avgUnitCost = 0;
+		  children = new ArrayList<MarketManagerService.Node>();
+	  }
+  }
+  
+  
   /**
    * Composes and submits the appropriate order for the given timeslot.
    */
-  private void submitOrder (double neededKWh, int timeslot)
+  private void submitBidMCTS (double neededKWh,int currentTimeslot, int timeslotBidding)
   {
     double neededMWh = neededKWh / 1000.0;
-
-    MarketPosition posn =
-        broker.getBroker().findMarketPositionByTimeslot(timeslot);
+    //find how many MWH are already available in given timeslot
+    MarketPosition posn = broker.getBroker().findMarketPositionByTimeslot(timeslotBidding);
+    System.out.println("  "+ posn.toString());
+    
     if (posn != null)
       neededMWh -= posn.getOverallBalance();
     if (Math.abs(neededMWh) <= minMWh) {
-      log.info("no power required in timeslot " + timeslot);
+      log.info("no power required in timeslot " + timeslotBidding);
       return;
     }
-    Double limitPrice = computeLimitPrice(timeslot, neededMWh);
-    log.info("new order for " + neededMWh + " at " + limitPrice +
-             " in timeslot " + timeslot);
-    Order order = new Order(broker.getBroker(), timeslot, neededMWh, limitPrice);
-    lastOrder.put(timeslot, order);
+    Double limitPrice = computeLimitPrice(timeslotBidding, neededMWh);
+    // -------------	
+    double neededMWHTemp = neededMWh;
+    
+    
+    for (int i = 0; i < MAX_ITERATIONS; i++) {
+    	
+    	neededMWHTemp = neededMWh; // Get Demand(t,n)
+    	
+    	while(neededMWHTemp > minMWh ) { // || cur.HoursAhead == 0
+    		
+    	}
+		
+	}
+    
+    
+    // -------------	
+    log.info("new order for " + neededMWh + " at " + limitPrice + " in timeslot " + timeslotBidding);
+    Order order = new Order(broker.getBroker(), timeslotBidding, neededMWh, limitPrice);
+    lastOrder.put(timeslotBidding, order);
     broker.sendMessage(order);
   }
 
