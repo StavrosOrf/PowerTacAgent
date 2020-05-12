@@ -332,7 +332,6 @@ implements MarketManager, Initializable, Activatable
 		  avgUnitCost = 0;
 		  children = new ArrayList<MarketManagerService.Node>();
 		  
-		  
 	  }
   }
   
