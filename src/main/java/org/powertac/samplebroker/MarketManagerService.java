@@ -371,6 +371,25 @@ implements MarketManager, Initializable, Activatable
 		  } 
 		  return false;
 	  }
+	  
+	  //TBI
+	  //Return a random unvisited child node
+	  public Node getRandomUnvisitedChild() {
+		  if( children.isEmpty()) {
+			  //this.generateNodeKids(limitPrice);
+		  }
+			  
+		  
+		  
+		  return null;
+		  
+	  }
+	  //TBI
+	  //return the Child Node with the Highest UCT value
+	  public Node getBestUCTChild() {
+		  
+		  return null;
+	  }
   }
   
   
@@ -395,25 +414,42 @@ implements MarketManager, Initializable, Activatable
     double neededMWHTemp ;
     int timeslotBiddingTemp;
     Node curNode;
+    ArrayList<Node> visitedNodes;
+    
+    //Initialize 
+	Node root = new Node(0, null, 0, timeslotBidding-currentTimeslot);
+	//computeLimitPrice function will be replaced by pPredictor
+	root.generateRootsKids(computeLimitPrice(timeslotBidding, neededMWh));
     
     for (int i = 0; i < MAX_ITERATIONS; i++) {
     	
-    	Node root = new Node(0, null, 0, timeslotBidding-currentTimeslot);
-    	//computeLimitPrice function will be replaced by pPredictor
-    	root.generateRootsKids(computeLimitPrice(timeslotBidding, neededMWh));
+    	
     	neededMWHTemp = neededMWh; // Get Demand(t,n)
     	timeslotBiddingTemp = timeslotBidding;
     	curNode = root;
+    	visitedNodes = new ArrayList<MarketManagerService.Node>();
+    	visitedNodes.add(root); // TB checked
     	
-    	while(neededMWHTemp > minMWh  ) { // || cur.HoursAhead == 0
+    	while(neededMWHTemp > minMWh || curNode.hoursAhead == 0 ) { 
     		if(curNode.hasUnvisitedKidNodes()) {
+    			//select one random unvisited kid and expand
+    			    			
+    			//rollout TBI
+    			//play randmomly (without adding nodes) till the game ends and simulate Cbal
+    			
+    			break;
     			
     		}else {
+    			curNode = curNode.getBestUCTChild();
     			
+    			//simulate  TBI
+    			//calculate Csim,neededMWHTemp
     		}
+    		
+    		visitedNodes.add(curNode);
     	}
     	
-    	//backpropagate and update variable counters
+    	//backpropagate and update variable counters TBI
 		
 	}
     
