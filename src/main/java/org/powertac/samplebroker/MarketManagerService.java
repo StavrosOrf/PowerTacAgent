@@ -312,19 +312,23 @@ implements MarketManager, Initializable, Activatable
    * 
    */
   public static int MAX_ITERATIONS = 10;
-  public static int NUM_OF_ACTIONS = 3;
+  public static int NUM_OF_ACTIONS = 3; // must be > 1
   
+  //Price predictor generated variables TODO
+  public static double OBSERVED_DEVIATION = 10; //σ, will be changed in future when we implement pPredictor
+  public static double D_MIN = -1; // Δ min minimum price multiplier , TBC
+  public static double D_MAX = 1; // Δ max maximum price multiplier , TBC
   
   // A Node 
   public class Node{
-	  public int actionID;
+	  public double actionID;
 	  public int visitCount;
 	  public int hoursAhead;
 	  public double avgUnitCost;
 	  public Node parent;
 	  public ArrayList<Node> children;
 	  
-	  public Node(int id, Node parent,int visitcount,int hoursAhead) {
+	  public Node(double id, Node parent,int visitcount,int hoursAhead) {
 		  this.actionID = id;
 		  this.parent = parent;
 		  this.visitCount = visitcount;
@@ -332,6 +336,40 @@ implements MarketManager, Initializable, Activatable
 		  avgUnitCost = 0;
 		  children = new ArrayList<MarketManagerService.Node>();
 		  
+	  }
+	  
+	  public void generateRootsKids(double limitPrice) {
+		  double minPrice = limitPrice + D_MIN*OBSERVED_DEVIATION;
+		  double maxPrice = limitPrice + D_MAX*OBSERVED_DEVIATION;
+		  
+		  double step =  (maxPrice-minPrice)/(NUM_OF_ACTIONS-1);
+		  
+		  for (int i = 0; i < NUM_OF_ACTIONS; i++) {
+			  double bid = minPrice + step*i;
+			  Node n = new Node(bid, this, 0, hoursAhead);
+			  children.add(n);
+		  }
+	  }
+	  public void generateNodeKids(double limitPrice) {
+		  double minPrice = limitPrice + D_MIN*OBSERVED_DEVIATION;
+		  double maxPrice = limitPrice + D_MAX*OBSERVED_DEVIATION;
+		  
+		  double step =  (maxPrice-minPrice)/(NUM_OF_ACTIONS-1);
+		  
+		  for (int i = 0; i < NUM_OF_ACTIONS; i++) {
+			  double bid = minPrice + step*i;
+			  Node n = new Node(bid, this, 0, hoursAhead-1);
+			  children.add(n);
+		  }
+	  }
+	  
+	  public boolean hasUnvisitedKidNodes() {
+		  for (Node c : this.children) {
+			  if(c.visitCount == 0) {
+				 return true;
+			  }
+		  } 
+		  return false;
 	  }
   }
   
@@ -353,22 +391,34 @@ implements MarketManager, Initializable, Activatable
       return;
     }
     Double limitPrice = computeLimitPrice(timeslotBidding, neededMWh);
-    // -------------	
-    double neededMWHTemp = neededMWh;
-    
+    // ==========================================================================================	
+    double neededMWHTemp ;
+    int timeslotBiddingTemp;
+    Node curNode;
     
     for (int i = 0; i < MAX_ITERATIONS; i++) {
     	
+    	Node root = new Node(0, null, 0, timeslotBidding-currentTimeslot);
+    	//computeLimitPrice function will be replaced by pPredictor
+    	root.generateRootsKids(computeLimitPrice(timeslotBidding, neededMWh));
     	neededMWHTemp = neededMWh; // Get Demand(t,n)
+    	timeslotBiddingTemp = timeslotBidding;
+    	curNode = root;
     	
-    	while(neededMWHTemp > minMWh ) { // || cur.HoursAhead == 0
-    		
+    	while(neededMWHTemp > minMWh  ) { // || cur.HoursAhead == 0
+    		if(curNode.hasUnvisitedKidNodes()) {
+    			
+    		}else {
+    			
+    		}
     	}
+    	
+    	//backpropagate and update variable counters
 		
 	}
     
     
-    // -------------	
+    // ==========================================================================================	
     log.info("new order for " + neededMWh + " at " + limitPrice + " in timeslot " + timeslotBidding);
     Order order = new Order(broker.getBroker(), timeslotBidding, neededMWh, limitPrice);
     lastOrder.put(timeslotBidding, order);
