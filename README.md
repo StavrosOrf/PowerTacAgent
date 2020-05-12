@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 Power TAC Sample Broker
 =======================
 
@@ -55,3 +56,6 @@ You can use maven to generate javadocs for this package as
 `mvn javadoc:javadoc`
 
 after which you can find the generated documentation in the directory `target/site/apidocs/`.
+=======
+# PowerTacAgent
+>>>>>>> branch 'master' of https://github.com/stavrosgreece/PowerTacAgent.git
