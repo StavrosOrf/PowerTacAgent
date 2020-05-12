@@ -331,6 +331,8 @@ implements MarketManager, Initializable, Activatable
 		  this.hoursAhead = hoursAhead; 
 		  avgUnitCost = 0;
 		  children = new ArrayList<MarketManagerService.Node>();
+		  
+		  
 	  }
   }
   
