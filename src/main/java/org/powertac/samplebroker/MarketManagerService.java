@@ -274,8 +274,8 @@ implements MarketManager, Initializable, Activatable
   // ----------- per-timeslot activation ---------------
 
   /**
-   * Compute needed quantities for each open timeslot, then submit orders
-   * for those quantities.
+   * -----------Compute needed quantities for each open timeslot, then submit orders
+   * ---------------for those quantities.
    *
    * @see org.powertac.samplebroker.interfaces.Activatable#activate(int)
    */
@@ -368,27 +368,49 @@ implements MarketManager, Initializable, Activatable
 			  if(c.visitCount == 0) {
 				 return true;
 			  }
-		  } 
+		  }
+		  
 		  return false;
 	  }
 	  
-	  //TBI
 	  //Return a random unvisited child node
 	  public Node getRandomUnvisitedChild() {
 		  if( children.isEmpty()) {
 			  //this.generateNodeKids(limitPrice);
 		  }
-			  
 		  
+		  ArrayList<Node> tempList = new ArrayList<MarketManagerService.Node>();
 		  
-		  return null;
+		  for (Node c : this.children) {
+			  if(c.visitCount == 0) {
+				 tempList.add(c);
+			  }
+		  }
+		  
+		  if(tempList.size() > 1 ) {
+			  Random rand = new Random(); 
+			  return tempList.get(rand.nextInt(tempList.size()));
+		  }
+		  
+		  return tempList.get(0);
 		  
 	  }
-	  //TBI
 	  //return the Child Node with the Highest UCT value
-	  public Node getBestUCTChild() {
+	  public Node getBestUCTChild(double CbalUnitPrice) {
+		  Node bestNode = null;
+		  double uctMax = -100;
 		  
-		  return null;
+		  double t,uct;
+		  
+		  for(Node n : children) {
+			  t = 1 - (this.avgUnitCost/CbalUnitPrice);
+			  uct = t + Math.sqrt((2*Math.log10(this.parent.visitCount))/this.visitCount); // may need to add a small + e for ties
+			  if(uct > uctMax) {
+				  uctMax = uct;
+				  bestNode = n;
+			  }
+		  }
+		  return bestNode;
 	  }
   }
   
@@ -411,10 +433,16 @@ implements MarketManager, Initializable, Activatable
     }
     Double limitPrice = computeLimitPrice(timeslotBidding, neededMWh);
     // ==========================================================================================	
+    
+    //TODO check if needed is negative or positive
     double neededMWHTemp ;
     int timeslotBiddingTemp;
     Node curNode;
     ArrayList<Node> visitedNodes;
+    double Csim; // Total simulated cost of auctions done
+    double Cbal = 0; // Estimated Balancing cost
+    double CbalUnitPrice = 2* Math.abs(buyLimitPriceMin); // May need to reevaluate this!!!!!!!!!!!!!!!!TODO  
+    double CavgUnit = 0; // Average Unit Cost 
     
     //Initialize 
 	Node root = new Node(0, null, 0, timeslotBidding-currentTimeslot);
@@ -430,26 +458,67 @@ implements MarketManager, Initializable, Activatable
     	visitedNodes = new ArrayList<MarketManagerService.Node>();
     	visitedNodes.add(root); // TB checked
     	
-    	while(neededMWHTemp > minMWh || curNode.hoursAhead == 0 ) { 
+    	Csim = 0;
+    	
+    	while(neededMWHTemp > minMWh && curNode.hoursAhead > 0 ) {
+    		
+    		if(curNode.children.isEmpty()) {
+    			curNode.generateNodeKids(computeLimitPrice(timeslotBiddingTemp, neededMWHTemp));
+    		}
+    		
     		if(curNode.hasUnvisitedKidNodes()) {
     			//select one random unvisited kid and expand
-    			    			
-    			//rollout TBI
+    				curNode = curNode.getRandomUnvisitedChild();
+    			//rollout 
     			//play randmomly (without adding nodes) till the game ends and simulate Cbal
+    			int tempHoursAhead = curNode.hoursAhead;
     			
+    			while(neededMWHTemp > minMWh && tempHoursAhead > 0 ) {
+    				
+        			double limitPriceMCTS = computeLimitPrice(timeslotBidding + tempHoursAhead,neededMWHTemp);
+        			double clearingPrice = randomGen.nextGaussian()* OBSERVED_DEVIATION + limitPriceMCTS; 
+        			// TODO swap compute limit price with price predictor value
+        			if(limitPriceMCTS > clearingPrice) {
+        				Csim += neededMWHTemp * clearingPrice;
+        				neededMWHTemp = 0;
+        				// At this point i may want to consider different bid sizes(like 50% of total need)
+        			}else {
+        				tempHoursAhead --;
+        			}
+    			}
+    				
+    			//may needed
+    			//visitedNodes.add(curNode);
     			break;
     			
     		}else {
-    			curNode = curNode.getBestUCTChild();
+    			curNode = curNode.getBestUCTChild(CbalUnitPrice);
     			
-    			//simulate  TBI
-    			//calculate Csim,neededMWHTemp
+    			//simulate  
+    			//get a simulated clearing Price
+    			double limitPriceMCTS = computeLimitPrice(timeslotBidding + curNode.hoursAhead,neededMWHTemp);
+    			double clearingPrice = randomGen.nextGaussian()* OBSERVED_DEVIATION + limitPriceMCTS; 
+    			// TODO swap compute limit price with price predictor value
+    			if(limitPriceMCTS > clearingPrice) {
+    				Csim += neededMWHTemp * clearingPrice;
+    				neededMWHTemp = 0;
+    				// At this point i may want to consider different bid sizes(like 50% of total need)
+    			}
     		}
     		
     		visitedNodes.add(curNode);
     	}
-    	
-    	//backpropagate and update variable counters TBI
+    	Csim += CbalUnitPrice * neededMWHTemp;
+    	CavgUnit = Csim / neededMWh;
+    	//backpropagate and update variable counters 
+    	for(Node n : visitedNodes) {
+    		n.visitCount ++;
+    		if(n.avgUnitCost != 0 ) {
+    			n.avgUnitCost = (n.avgUnitCost + CavgUnit)/2 ;// get the mean ,may need to change TBI TODO
+    		}else {
+    			n.avgUnitCost = CavgUnit;
+    		}		
+    	}
 		
 	}
     
