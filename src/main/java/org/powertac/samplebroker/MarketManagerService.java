@@ -289,9 +289,9 @@ implements MarketManager, Initializable, Activatable
       printAboutTimeslot(timeslot);
 //      System.out.println("usage record lentgh: " + broker.getUsageRecordLength());
       int index = (timeslot.getSerialNumber()) % broker.getUsageRecordLength();
-      System.out.print("  Index: "+ index);
+//      System.out.print("  Index: "+ index);
       neededKWh = portfolioManager.collectUsage(index);
-      System.out.print(" needed KWH: "+ neededKWh);
+//      System.out.print(" needed KWH: "+ neededKWh);
       submitBidMCTS(neededKWh,timeslotRepo.currentTimeslot().getSerialNumber(), timeslot.getSerialNumber());
  
     }
@@ -311,7 +311,7 @@ implements MarketManager, Initializable, Activatable
   /**MCTS VARIABLES BELOW
    * 
    */
-  public static int MAX_ITERATIONS = 10;
+  public static int MAX_ITERATIONS = 1000;
   public static int NUM_OF_ACTIONS = 3; // must be > 1
   
   //Price predictor generated variables TODO
@@ -401,16 +401,38 @@ implements MarketManager, Initializable, Activatable
 		  double uctMax = -100;
 		  
 		  double t,uct;
+		  int sm;
 		  
 		  for(Node n : children) {
-			  t = 1 - (this.avgUnitCost/CbalUnitPrice);
-			  uct = t + Math.sqrt((2*Math.log10(this.parent.visitCount))/this.visitCount); // may need to add a small + e for ties
+			  t = 1 - (n.avgUnitCost/CbalUnitPrice);
+			  
+			  if(n.visitCount == 0) {
+				  sm = 1;
+			  }else {
+				  sm = 0;
+			  }
+			// may need to add a small + e for ties
+			  uct = t + Math.sqrt((2*Math.log10(n.parent.visitCount + sm))/(n.visitCount + sm)); 
 			  if(uct > uctMax) {
 				  uctMax = uct;
 				  bestNode = n;
 			  }
 		  }
 		  return bestNode;
+	  }
+	  
+	  public String toString() {
+		  String tmp = String.valueOf(this.hashCode()).substring(0,4);
+		  
+		  
+		  if(parent == null) {
+			  return "Node: " + tmp + " level: "+ hoursAhead + " parent: No parent"   + " actionId: "+ actionID 
+					  + " visitCount: "+ visitCount + " avgUnitCost: " + avgUnitCost;
+		  }
+		  String tmpParent = String.valueOf(this.parent.hashCode()).substring(0,4);
+		  
+		  return "Node: " + tmp + " level: "+ hoursAhead + " parent: " + tmpParent  + " actionId: "+ actionID 
+				  + " visitCount: "+ visitCount + " avgUnitCost: " + avgUnitCost;
 	  }
   }
   
@@ -423,14 +445,18 @@ implements MarketManager, Initializable, Activatable
     double neededMWh = neededKWh / 1000.0;
     //find how many MWH are already available in given timeslot
     MarketPosition posn = broker.getBroker().findMarketPositionByTimeslot(timeslotBidding);
-    System.out.println("  "+ posn.toString());
+    
     
     if (posn != null)
       neededMWh -= posn.getOverallBalance();
     if (Math.abs(neededMWh) <= minMWh) {
       log.info("no power required in timeslot " + timeslotBidding);
+      System.out.println(" ");
       return;
     }
+    System.out.print("  neededMWH: " + neededMWh);
+    //System.out.print("  "+ posn.toString());
+    
     Double limitPrice = computeLimitPrice(timeslotBidding, neededMWh);
     // ==========================================================================================	
     
@@ -488,7 +514,7 @@ implements MarketManager, Initializable, Activatable
     			}
     				
     			//may needed
-    			//visitedNodes.add(curNode);
+    			visitedNodes.add(curNode);
     			break;
     			
     		}else {
@@ -522,14 +548,51 @@ implements MarketManager, Initializable, Activatable
 		
 	}
     
+    //get best action from MCTS using τ metric
+    
+    double bestActionT = 0.0;
+    Node bestActionNode = null;
+    
+    for(Node n : root.children) {
+    	if(1-(n.avgUnitCost/CbalUnitPrice) > bestActionT) {
+    		bestActionNode = n;
+    		bestActionT = 1 -(n.avgUnitCost/CbalUnitPrice);
+    	}
+    }
+    
+    System.out.println("  ------ mcts bid: " + bestActionNode.actionID + "  w/out: " + limitPrice);
+    
+//    if(timeslotBidding-currentTimeslot <= 5) {
+//    	
+//    	printTree(root);
+//    }
     
     // ==========================================================================================	
     log.info("new order for " + neededMWh + " at " + limitPrice + " in timeslot " + timeslotBidding);
-    Order order = new Order(broker.getBroker(), timeslotBidding, neededMWh, limitPrice);
+//    Order order = new Order(broker.getBroker(), timeslotBidding, neededMWh, limitPrice);
+    Order order = new Order(broker.getBroker(), timeslotBidding, neededMWh, bestActionNode.actionID);
     lastOrder.put(timeslotBidding, order);
     broker.sendMessage(order);
   }
-
+  
+  private void printTree(Node n) {
+	  if(n == null || n.children.isEmpty())
+		  return;
+	  if(n.parent == null) {
+		  System.out.println(n.toString());
+	  }
+	  System.out.println("---");
+	  for(Node child : n.children) {
+		  System.out.println(child.toString());
+	  }
+	  
+	  for(Node child : n.children) {
+		  printTree(child);
+	  }
+	  
+	  
+	  
+  }
   /**
    * Computes a limit price with a random element. 
    */
@@ -576,6 +639,8 @@ implements MarketManager, Initializable, Activatable
       return Math.max(newLimitPrice, computedPrice);
     }
     else
-      return null; // market order
+    	//System.out.print("*#*");
+    	return 0.0;
+      //return null; // market order
   }
 }
