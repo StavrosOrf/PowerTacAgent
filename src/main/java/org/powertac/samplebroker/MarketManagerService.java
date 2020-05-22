@@ -311,8 +311,9 @@ implements MarketManager, Initializable, Activatable
   /**MCTS VARIABLES BELOW
    * 
    */
-  public static int MAX_ITERATIONS = 1000;
+  public static int MAX_ITERATIONS = 100;
   public static int NUM_OF_ACTIONS = 3; // must be > 1
+  public static int NO_BID = -9999;
   
   //Price predictor generated variables TODO
   public static double OBSERVED_DEVIATION = 10; //σ, will be changed in future when we implement pPredictor
@@ -342,13 +343,23 @@ implements MarketManager, Initializable, Activatable
 		  double minPrice = limitPrice + D_MIN*OBSERVED_DEVIATION;
 		  double maxPrice = limitPrice + D_MAX*OBSERVED_DEVIATION;
 		  
+//		  //temporary fix, may need to  change
+//		  if(minPrice >= 0 && maxPrice >= 0) {
+//			  minPrice -= maxPrice;
+//			  maxPrice = -1;
+//		  }
+		  
 		  double step =  (maxPrice-minPrice)/(NUM_OF_ACTIONS-1);
 		  
 		  for (int i = 0; i < NUM_OF_ACTIONS; i++) {
 			  double bid = minPrice + step*i;
+			  
 			  Node n = new Node(bid, this, 0, hoursAhead);
 			  children.add(n);
 		  }
+		  // add a NO_BID action
+		  Node n = new Node(NO_BID, this, 0, hoursAhead);
+		  children.add(n);
 	  }
 	  public void generateNodeKids(double limitPrice) {
 		  double minPrice = limitPrice + D_MIN*OBSERVED_DEVIATION;
@@ -358,9 +369,17 @@ implements MarketManager, Initializable, Activatable
 		  
 		  for (int i = 0; i < NUM_OF_ACTIONS; i++) {
 			  double bid = minPrice + step*i;
+			  if(bid > 0 ) {
+				  continue;
+			  }
+
 			  Node n = new Node(bid, this, 0, hoursAhead-1);
 			  children.add(n);
 		  }
+		  
+		  // add a NO_BID action
+		  Node n = new Node(NO_BID, this, 0, hoursAhead);
+		  children.add(n);
 	  }
 	  
 	  public boolean hasUnvisitedKidNodes() {
@@ -482,7 +501,7 @@ implements MarketManager, Initializable, Activatable
     	timeslotBiddingTemp = timeslotBidding;
     	curNode = root;
     	visitedNodes = new ArrayList<MarketManagerService.Node>();
-    	visitedNodes.add(root); // TB checked
+    	visitedNodes.add(root); 
     	
     	Csim = 0;
     	
@@ -501,16 +520,23 @@ implements MarketManager, Initializable, Activatable
     			
     			while(neededMWHTemp > minMWh && tempHoursAhead > 0 ) {
     				
-        			double limitPriceMCTS = computeLimitPrice(timeslotBidding + tempHoursAhead,neededMWHTemp);
-        			double clearingPrice = randomGen.nextGaussian()* OBSERVED_DEVIATION + limitPriceMCTS; 
-        			// TODO swap compute limit price with price predictor value
-        			if(limitPriceMCTS > clearingPrice) {
-        				Csim += neededMWHTemp * clearingPrice;
-        				neededMWHTemp = 0;
-        				// At this point i may want to consider different bid sizes(like 50% of total need)
-        			}else {
-        				tempHoursAhead --;
-        			}
+    				//choose a random action( Bid or NO_Bid)
+    				int p = randomGen.nextInt(NUM_OF_ACTIONS + 1);
+    				if( p == NUM_OF_ACTIONS) { //NoBid action was chosen
+    					tempHoursAhead --;
+    				}else {
+            			double limitPriceMCTS = computeLimitPrice(timeslotBidding + tempHoursAhead,neededMWHTemp);
+            			double clearingPrice = randomGen.nextGaussian()* OBSERVED_DEVIATION + limitPriceMCTS; 
+            			// TODO swap compute limit price with price predictor value
+            			if(limitPriceMCTS > clearingPrice) {
+            				Csim += neededMWHTemp * clearingPrice;
+            				neededMWHTemp = 0;
+            				// At this point i may want to consider different bid sizes(like 50% of total need)
+            			}else {
+            				tempHoursAhead --;
+            			}
+    				}
+
     			}
     				
     			//may needed
@@ -520,16 +546,19 @@ implements MarketManager, Initializable, Activatable
     		}else {
     			curNode = curNode.getBestUCTChild(CbalUnitPrice);
     			
-    			//simulate  
-    			//get a simulated clearing Price
-    			double limitPriceMCTS = computeLimitPrice(timeslotBidding + curNode.hoursAhead,neededMWHTemp);
-    			double clearingPrice = randomGen.nextGaussian()* OBSERVED_DEVIATION + limitPriceMCTS; 
-    			// TODO swap compute limit price with price predictor value
-    			if(limitPriceMCTS > clearingPrice) {
-    				Csim += neededMWHTemp * clearingPrice;
-    				neededMWHTemp = 0;
-    				// At this point i may want to consider different bid sizes(like 50% of total need)
-    			}
+				if(curNode.actionID != NO_BID) {					
+	    			//simulate  
+	    			//get a simulated clearing Price
+	    			double limitPriceMCTS = computeLimitPrice(timeslotBidding + curNode.hoursAhead,neededMWHTemp);
+	    			double clearingPrice = randomGen.nextGaussian()* OBSERVED_DEVIATION + limitPriceMCTS; 
+	    			// TODO swap compute limit price with price predictor value
+	    			if(limitPriceMCTS > clearingPrice) {
+	    				Csim += neededMWHTemp * clearingPrice;
+	    				neededMWHTemp = 0;
+	    				// At this point i may want to consider different bid sizes(like 50% of total need)
+	    			}
+				}
+
     		}
     		
     		visitedNodes.add(curNode);
@@ -562,11 +591,19 @@ implements MarketManager, Initializable, Activatable
     
     System.out.println("  ------ mcts bid: " + bestActionNode.actionID + "  w/out: " + limitPrice);
     
-//    if(timeslotBidding-currentTimeslot <= 5) {
+//    if(timeslotBidding-currentTimeslot == 4) {
 //    	
 //    	printTree(root);
 //    }
     
+    //if NO_BID was chosen return
+    if(bestActionNode.actionID == NO_BID)
+    	return;
+    
+    
+//    if(timeslotBidding - currentTimeslot > 18) {
+//    	bestActionNode.actionID += -20;
+//    }
     // ==========================================================================================	
     log.info("new order for " + neededMWh + " at " + limitPrice + " in timeslot " + timeslotBidding);
 //    Order order = new Order(broker.getBroker(), timeslotBidding, neededMWh, limitPrice);
