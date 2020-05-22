@@ -135,6 +135,22 @@ public class Node{
 		  return bestNode;
 	  }
 	  
+	  public void addDynamicAction() {
+		  // find lowest simulated unit cost among children of root and add a new node
+		  	  
+		  double minUnitCost = 1000000000;
+		  for (Node n : children) {
+			if( Math.abs(n.avgUnitCost) < minUnitCost && n.visitCount != 0) {
+				minUnitCost = n.avgUnitCost;
+			}			
+		  }
+		  
+		  if(minUnitCost != 1000000000) {
+			  children.add(new Node(minUnitCost, this, 0, hoursAhead));
+		  }
+		  
+	  }
+	  
 	  public String toString() {
 		  String tmp = String.valueOf(this.hashCode()).substring(0,4);
 		  

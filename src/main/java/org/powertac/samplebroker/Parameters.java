@@ -5,6 +5,9 @@ public class Parameters {
 	  public static int MAX_ITERATIONS = 1000;
 	  public static int NUM_OF_ACTIONS = 3; // must be > 1
 	  public static int NO_BID = -9999;
+	  public static int[] DYNAMIC_THRESHOLD = {5,10,20,50}; // Threshold in which a new dynamic action 
+	  														// will be added to the search space
+	  public static boolean EN_DYNAMIC = true; // whether or not dynamic mcts is enabled
 	  							    
 	  //Price predictor generated variables TODO
 	  public static double OBSERVED_DEVIATION = 10; //σ, will be changed in future when we implement pPredictor

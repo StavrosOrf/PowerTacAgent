@@ -352,7 +352,7 @@ implements MarketManager, Initializable, Activatable
     ArrayList<Node> visitedNodes;
     double Csim; // Total simulated cost of auctions done
     double Cbal = 0; // Estimated Balancing cost
-    double CbalUnitPrice = - 2* Math.abs(buyLimitPriceMin); // May need to reevaluate this!!!!!!!!!!!!!!!!TODO  
+    double CbalUnitPrice = - 2* Math.abs(buyLimitPriceMin)/2; // May need to reevaluate this!!!!!!!!!!!!!!!!TODO  
     double CavgUnit = 0; // Average Unit Cost 
     
     //Initialize 
@@ -360,8 +360,22 @@ implements MarketManager, Initializable, Activatable
 	//computeLimitPrice function will be replaced by pPredictor
 	root.generateRootsKids(computeLimitPrice(timeslotBidding, neededMWh));
     
+	ArrayList<Integer> dynamic_actions_threshold  = new ArrayList<Integer>();
+	for (int i : Parameters.DYNAMIC_THRESHOLD) {
+		dynamic_actions_threshold.add(MAX_ITERATIONS*i/100);
+	}
+	
     for (int i = 0; i < MAX_ITERATIONS; i++) {
     	
+    	//If true add new action
+    	if( dynamic_actions_threshold.get(0) == i && Parameters.EN_DYNAMIC) {
+    		dynamic_actions_threshold.remove(0);
+    		root.addDynamicAction();
+    		
+    		if(dynamic_actions_threshold.isEmpty()) {
+    			dynamic_actions_threshold.add(0);
+    		}
+    	}
     	
     	neededMWHTemp = neededMWh; // Get Demand(t,n)
     	timeslotBiddingTemp = timeslotBidding;
@@ -405,7 +419,6 @@ implements MarketManager, Initializable, Activatable
 
     			}
     				
-    			//may needed
     			visitedNodes.add(curNode);
     			break;
     			
@@ -455,25 +468,41 @@ implements MarketManager, Initializable, Activatable
     	}
     }
     
-    System.out.println("  ------ mcts bid: " + bestActionNode.actionID + "  w/out: " + limitPrice);
-    
-    if(timeslotBidding-currentTimeslot == 4) {
-    	
-    	printTree(root);
+    if(bestActionNode == null) {
+    	bestActionNode = new Node(limitPrice, null, -1, -1);
     }
+
+//    if(timeslotBidding-currentTimeslot == 4) {
+//    	
+//    	printTree(root);
+//    }
     
     //if NO_BID was chosen return
-    if(bestActionNode.actionID == NO_BID)
+    if(bestActionNode.actionID == NO_BID) {
+    	System.out.println(" ");
     	return;
-    
+    }
     
 //    if(timeslotBidding - currentTimeslot > 18) {
-//    	bestActionNode.actionID += -20;
+//    	bestActionNode.actionID += -10;
 //    }
+    
+//   Temp fix for positive selling prices
+    
+    if( neededMWh > 0 && bestActionNode.actionID > 0) {
+    	bestActionNode.actionID = - bestActionNode.actionID;
+    }
+    if( neededMWh < 0 && bestActionNode.actionID < 0) {
+    	bestActionNode.actionID = - bestActionNode.actionID;
+    }
+    
+    System.out.println("  ------ mcts bid: " + bestActionNode.actionID + "  w/out: " + limitPrice);
+    Order order;
     // ==========================================================================================	
     log.info("new order for " + neededMWh + " at " + limitPrice + " in timeslot " + timeslotBidding);
 //    Order order = new Order(broker.getBroker(), timeslotBidding, neededMWh, limitPrice);
-    Order order = new Order(broker.getBroker(), timeslotBidding, neededMWh, bestActionNode.actionID);
+    order = new Order(broker.getBroker(), timeslotBidding, neededMWh, bestActionNode.actionID);
+ 
     lastOrder.put(timeslotBidding, order);
     broker.sendMessage(order);
   }
