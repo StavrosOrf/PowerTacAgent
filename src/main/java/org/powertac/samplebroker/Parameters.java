@@ -2,7 +2,7 @@ package org.powertac.samplebroker;
 
 public class Parameters {
 	
-	  public static int MAX_ITERATIONS = 1000;
+	  public static int MAX_ITERATIONS = 10000;
 	  public static int NUM_OF_ACTIONS = 3; // must be > 1
 	  public static int NO_BID = -9999;
 	  public static int[] DYNAMIC_THRESHOLD = {5,10,20,50}; // Threshold in which a new dynamic action 

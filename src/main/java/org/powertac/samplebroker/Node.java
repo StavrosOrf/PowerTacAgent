@@ -53,8 +53,10 @@ public class Node{
 			  children.add(n);
 		  }
 		  // add a NO_BID action
-		  Node n = new Node(NO_BID, this, 0, hoursAhead);
-		  children.add(n);
+		  if(hoursAhead > 1) {
+			  Node n = new Node(NO_BID, this, 0, hoursAhead);
+			  children.add(n);
+		  }
 	  }
 	  public void generateNodeKids(double limitPrice) {
 		  double minPrice = limitPrice + D_MIN*OBSERVED_DEVIATION;

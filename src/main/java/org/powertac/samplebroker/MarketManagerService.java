@@ -472,7 +472,7 @@ implements MarketManager, Initializable, Activatable
     	bestActionNode = new Node(limitPrice, null, -1, -1);
     }
 
-//    if(timeslotBidding-currentTimeslot == 4) {
+//    if(timeslotBidding-currentTimeslot == 3) {
 //    	
 //    	printTree(root);
 //    }
@@ -496,6 +496,7 @@ implements MarketManager, Initializable, Activatable
     	bestActionNode.actionID = - bestActionNode.actionID;
     }
     
+
     System.out.println("  ------ mcts bid: " + bestActionNode.actionID + "  w/out: " + limitPrice);
     Order order;
     // ==========================================================================================	
