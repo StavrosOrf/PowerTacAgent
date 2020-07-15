@@ -48,6 +48,8 @@ import org.powertac.samplebroker.interfaces.PortfolioManager;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import com.fasterxml.jackson.databind.deser.impl.CreatorCandidate.Param;
+
 /**
  * Handles market interactions on behalf of the broker.
  * @author John Collins
@@ -74,19 +76,19 @@ implements MarketManager, Initializable, Activatable
   // max and min offer prices. Max means "sure to trade"
   @ConfigurableValue(valueType = "Double",
           description = "Upper end (least negative) of bid price range")
-  private double buyLimitPriceMax = -1.0;  // broker pays
+  private double buyLimitPriceMax = Parameters.buyLimitPriceMax;  // broker pays
 
   @ConfigurableValue(valueType = "Double",
           description = "Lower end (most negative) of bid price range")
-  private double buyLimitPriceMin = -70.0;  // broker pays
+  private double buyLimitPriceMin = Parameters.buyLimitPriceMin;  // broker pays
 
   @ConfigurableValue(valueType = "Double",
           description = "Upper end (most positive) of ask price range")
-  private double sellLimitPriceMax = 70.0;    // other broker pays
+  private double sellLimitPriceMax = Parameters.sellLimitPriceMax;    // other broker pays
 
   @ConfigurableValue(valueType = "Double",
           description = "Lower end (least positive) of ask price range")
-  private double sellLimitPriceMin = 0.5;    // other broker pays
+  private double sellLimitPriceMin = Parameters.sellLimitPriceMin;    // other broker pays
 
   @ConfigurableValue(valueType = "Double",
           description = "Minimum bid/ask quantity in MWh")
@@ -95,7 +97,8 @@ implements MarketManager, Initializable, Activatable
   @ConfigurableValue(valueType = "Integer",
           description = "If set, seed the random generator")
   private Integer seedNumber = null;
-
+  
+  private static boolean WH_PRINT_ON = Parameters.WH_PRINT_ON;
   // ---------------- local state ------------------
   private Random randomGen; // to randomize bid/ask prices
 
@@ -181,6 +184,10 @@ implements MarketManager, Initializable, Activatable
    */
   public synchronized void handleMessage (CapacityTransaction dt)
   {
+	System.out.println("=================");
+	System.out.println("ts: " + dt.getPeakTimeslot() + "  " + dt.getBroker().getUsername()
+			+ "  " + dt.getKWh() + "  " + dt.getThreshold() + "  " + dt.getCharge() );
+	System.out.println("=================");
     log.info("Capacity tx: " + dt.getCharge());
   }
 
@@ -298,7 +305,8 @@ implements MarketManager, Initializable, Activatable
     
   }
   void printAboutTimeslot(Timeslot t) {
-	  System.out.print("Timeslot serial: "+ t.getSerialNumber());
+	  if(WH_PRINT_ON)
+		  System.out.print("Timeslot serial: "+ t.getSerialNumber());
 //	  System.out.println("time of day"+ t.slotInDay());
 //	  System.out.println("day of week"+ t.dayOfWeek());
 //	  System.out.println("stat time"+ t.getStartTime());
@@ -336,10 +344,12 @@ implements MarketManager, Initializable, Activatable
       neededMWh -= posn.getOverallBalance();
     if (Math.abs(neededMWh) <= minMWh) {
       log.info("no power required in timeslot " + timeslotBidding);
-      System.out.println(" ");
+      if(WH_PRINT_ON)
+    	  System.out.println(" ");
       return;
     }
-    System.out.print("  neededMWH: " + neededMWh);
+    if(WH_PRINT_ON)
+    	System.out.print("  neededMWH: " + neededMWh);
     //System.out.print("  "+ posn.toString());
     
     Double limitPrice = computeLimitPrice(timeslotBidding, neededMWh);
@@ -352,7 +362,7 @@ implements MarketManager, Initializable, Activatable
     ArrayList<Node> visitedNodes;
     double Csim; // Total simulated cost of auctions done
     double Cbal = 0; // Estimated Balancing cost
-    double CbalUnitPrice = - 2* Math.abs(buyLimitPriceMin)/2; // May need to reevaluate this!!!!!!!!!!!!!!!!TODO  
+    double CbalUnitPrice = - 2* Math.abs(Parameters.buyLimitPriceMin)/2; // May need to reevaluate this!!!!!!!!!!!!!!!!TODO  
     double CavgUnit = 0; // Average Unit Cost 
     
     //Initialize 
@@ -471,15 +481,16 @@ implements MarketManager, Initializable, Activatable
     if(bestActionNode == null) {
     	bestActionNode = new Node(limitPrice, null, -1, -1);
     }
-
-//    if(timeslotBidding-currentTimeslot == 3) {
+//
+//    if(timeslotBidding-currentTimeslot == 21) {
 //    	
 //    	printTree(root);
 //    }
     
     //if NO_BID was chosen return
     if(bestActionNode.actionID == NO_BID) {
-    	System.out.println(" ");
+    	if(WH_PRINT_ON)
+    		System.out.println(" ");
     	return;
     }
     
@@ -496,8 +507,8 @@ implements MarketManager, Initializable, Activatable
     	bestActionNode.actionID = - bestActionNode.actionID;
     }
     
-
-    System.out.println("  ------ mcts bid: " + bestActionNode.actionID + "  w/out: " + limitPrice);
+    if(WH_PRINT_ON)
+    	System.out.println("  ------ mcts bid: " + bestActionNode.actionID + "  base: " + limitPrice);
     Order order;
     // ==========================================================================================	
     log.info("new order for " + neededMWh + " at " + limitPrice + " in timeslot " + timeslotBidding);
@@ -565,7 +576,7 @@ implements MarketManager, Initializable, Activatable
     int remainingTries = (timeslot - current
                           - Competition.currentCompetition().getDeactivateTimeslotsAhead());
     log.debug("remainingTries: " + remainingTries);
-    if (remainingTries > 0) {
+    if (remainingTries > -1) { ////!
       double range = (minPrice - oldLimitPrice) * 2.0 / (double)remainingTries;
       log.debug("oldLimitPrice=" + oldLimitPrice + ", range=" + range);
       double computedPrice = oldLimitPrice + randomGen.nextDouble() * range; 

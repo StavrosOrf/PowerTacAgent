@@ -43,6 +43,7 @@ import org.powertac.common.msg.CustomerBootstrapData;
 import org.powertac.common.msg.EconomicControlEvent;
 import org.powertac.common.msg.TariffRevoke;
 import org.powertac.common.msg.TariffStatus;
+import org.powertac.common.repo.BrokerRepo;
 import org.powertac.common.repo.CustomerRepo;
 import org.powertac.common.repo.TariffRepo;
 import org.powertac.common.repo.TimeslotRepo;
@@ -78,13 +79,13 @@ implements PortfolioManager, Initializable, Activatable
   // Spring fills in Autowired dependencies through a naming convention
   @Autowired
   private BrokerPropertiesService propertiesService;
-
+  
   @Autowired
   private TimeslotRepo timeslotRepo;
 
   @Autowired
   private TariffRepo tariffRepo;
-
+  
   @Autowired
   private CustomerRepo customerRepo;
 
@@ -98,11 +99,11 @@ implements PortfolioManager, Initializable, Activatable
   // Customer records indexed by power type and by tariff. Note that the
   // CustomerRecord instances are NOT shared between these structures, because
   // we need to keep track of subscriptions by tariff.
-  private Map<PowerType,
-      Map<CustomerInfo, CustomerRecord>> customerProfiles;
-  private Map<TariffSpecification,
-      Map<CustomerInfo, CustomerRecord>> customerSubscriptions;
+  private Map<PowerType, Map<CustomerInfo, CustomerRecord>> customerProfiles;
+  private Map<TariffSpecification, Map<CustomerInfo, CustomerRecord>> customerSubscriptions;
   private Map<PowerType, List<TariffSpecification>> competingTariffs;
+  private Map<TariffSpecification,Double> tariffCharges;
+  private Database tariffDB;
 
   // These customer records need to be notified on activation
   private List<CustomerRecord> notifyOnActivation = new ArrayList<>();
@@ -140,7 +141,10 @@ implements PortfolioManager, Initializable, Activatable
     propertiesService.configureMe(this);
     customerProfiles = new LinkedHashMap<>();
     customerSubscriptions = new LinkedHashMap<>();
+    tariffCharges = new LinkedHashMap<TariffSpecification, Double>();
     competingTariffs = new HashMap<>();
+    tariffDB = new Database();
+    
     notifyOnActivation.clear();
   }
   
@@ -171,14 +175,14 @@ implements PortfolioManager, Initializable, Activatable
    * Returns the customer record for the given tariff spec and customer,
    * creating it if necessary. 
    */
-  CustomerRecord getCustomerRecordByTariff (TariffSpecification spec,
-                                            CustomerInfo customer)
+  CustomerRecord getCustomerRecordByTariff (TariffSpecification spec,CustomerInfo customer)
   {
     Map<CustomerInfo, CustomerRecord> customerMap =
         customerSubscriptions.get(spec);
     if (customerMap == null) {
       customerMap = new LinkedHashMap<>();
       customerSubscriptions.put(spec, customerMap);
+      tariffCharges.put(spec, 0d);
     }
     CustomerRecord record = customerMap.get(customer);
     if (record == null) {
@@ -286,7 +290,7 @@ implements PortfolioManager, Initializable, Activatable
 
   /**
    * Handles a TariffTransaction. We only care about certain types: PRODUCE,
-   * CONSUME, SIGNUP, and WITHDRAW.
+   * CONSUME, SIGNUP,PERIODIC and WITHDRAW.
    */
   public synchronized void handleMessage(TariffTransaction ttx)
   {
@@ -304,8 +308,7 @@ implements PortfolioManager, Initializable, Activatable
       }
     }
     TariffTransaction.Type txType = ttx.getTxType();
-    CustomerRecord record = getCustomerRecordByTariff(ttx.getTariffSpec(),
-                                                      ttx.getCustomerInfo());
+    CustomerRecord record = getCustomerRecordByTariff(ttx.getTariffSpec(), ttx.getCustomerInfo());
     
     if (TariffTransaction.Type.SIGNUP == txType) {
       // keep track of customer counts
@@ -331,13 +334,50 @@ implements PortfolioManager, Initializable, Activatable
                  ttx.getCustomerCount(), record.subscribedPopulation);
       }
       record.produceConsume(ttx.getKWh(), ttx.getPostedTime());
+      double currentCharge = tariffCharges.get(ttx.getTariffSpec());
+      tariffCharges.put(ttx.getTariffSpec(),currentCharge+ ttx.getCharge());
+      
+      log.info("TTX Produce: " +ttx.getCharge() + " , " + ttx.getId() 
+      	+ " , " + ttx.getBroker() + " , " + ttx.getTariffSpec().getPowerType().getGenericType());
     }
     else if (TariffTransaction.Type.CONSUME == txType) {
       if (ttx.getCustomerCount() != record.subscribedPopulation) {
         log.warn("consumption by subset {} of subscribed population {}",
                  ttx.getCustomerCount(), record.subscribedPopulation);
       }
-      record.produceConsume(ttx.getKWh(), ttx.getPostedTime());      
+      log.info("TTX Consume: " +ttx.getCharge() + " , " + ttx.getId() 
+      + " , " + ttx.getBroker() + " , " + ttx.getTariffSpec().getPowerType().getGenericType());
+      record.produceConsume(ttx.getKWh(), ttx.getPostedTime());
+      double currentCharge = tariffCharges.get(ttx.getTariffSpec());
+      tariffCharges.put(ttx.getTariffSpec(),currentCharge+ ttx.getCharge());
+    }
+    else if (TariffTransaction.Type.PERIODIC == txType) {
+    	log.info("TTX Periodic: " +ttx.getCharge() + " , " + ttx.getId() 
+        + " , " + ttx.getBroker() + " , " + ttx.getTariffSpec().getPowerType().getGenericType());
+        record.produceConsume(ttx.getKWh(), ttx.getPostedTime()); 
+        double currentCharge = tariffCharges.get(ttx.getTariffSpec());
+        tariffCharges.put(ttx.getTariffSpec(),currentCharge+ ttx.getCharge());
+    }
+    else if (TariffTransaction.Type.REVOKE == txType) {
+    	log.info("TTX Revoke: " +ttx.getCharge() + " , " + ttx.getId() 
+        + " , " + ttx.getBroker() + " , " + ttx.getTariffSpec().getPowerType().getGenericType());
+        record.produceConsume(ttx.getKWh(), ttx.getPostedTime()); 
+        double currentCharge = tariffCharges.get(ttx.getTariffSpec());
+        tariffCharges.put(ttx.getTariffSpec(),currentCharge+ ttx.getCharge());
+    }
+    else if (TariffTransaction.Type.SIGNUP == txType) {
+    	log.info("TTX Signup: " +ttx.getCharge() + " , " + ttx.getId() 
+        + " , " + ttx.getBroker() + " , " + ttx.getTariffSpec().getPowerType().getGenericType());
+        record.produceConsume(ttx.getKWh(), ttx.getPostedTime()); 
+        double currentCharge = tariffCharges.get(ttx.getTariffSpec());
+        tariffCharges.put(ttx.getTariffSpec(),currentCharge+ ttx.getCharge());
+    }
+    else if (TariffTransaction.Type.REFUND == txType) {
+    	log.info("TTX Refund: " +ttx.getCharge() + " , " + ttx.getId() 
+        + " , " + ttx.getBroker() + " , " + ttx.getTariffSpec().getPowerType().getGenericType());
+        record.produceConsume(ttx.getKWh(), ttx.getPostedTime()); 
+        double currentCharge = tariffCharges.get(ttx.getTariffSpec());
+        tariffCharges.put(ttx.getTariffSpec(),currentCharge+ ttx.getCharge());
     }
   }
 
@@ -385,19 +425,59 @@ implements PortfolioManager, Initializable, Activatable
    * Called after TimeslotComplete msg received. Note that activation order
    * among modules is non-deterministic.
    */
+  
+  int timer = 0 ;
+  //TODO
   @Override // from Activatable
   public synchronized void activate (int timeslotIndex)
   {
-    if (customerSubscriptions.size() == 0) {
-      // we (most likely) have no tariffs
-      createInitialTariffs();
-    }
-    else {
-      // we have some, are they good enough?
-      improveTariffs();
-    }
-    for (CustomerRecord record: notifyOnActivation)
-      record.activate();
+      if (customerSubscriptions.size() == 0) {
+        // we (most likely) have no tariffs
+        createInitialTariffs();
+      }
+      else {
+    	
+        // we have some, are they good enough?
+    	if(timer == Parameters.reevaluation) {
+    		System.out.println("Its time");
+    		
+    		for (TariffSpecification spec : customerSubscriptions.keySet()) {
+    			System.out.println("ID: "+spec.getId()+ " , "+ spec.getPowerType() + " , " + tariffCharges.get(spec));
+    			
+    			if(tariffCharges.get(spec) != 0)
+    				tariffDB.addTariff(spec.getBroker().getUsername(),spec.getPowerType(),(int)spec.getMinDuration(),
+    					spec.getEarlyWithdrawPayment(),spec.getSignupPayment(), spec.getPeriodicPayment(),0, tariffCharges.get(spec), 
+    					0, spec.getRates(),spec.getRegulationRates());
+    			
+    			tariffCharges.put(spec,0d);
+    		}
+    		improveTariffs();
+    		System.out.println("Other Tariffs-----------");
+    		for (PowerType pt : competingTariffs.keySet()) {
+    			for (TariffSpecification spec : competingTariffs.get(pt)) {
+        			System.out.println("ID: "+spec.getId()+ " , "+ spec.getPowerType()
+        				+ " , " +spec.getPeriodicPayment() + " , " +spec.getBroker().getCashBalance() 
+        				+ " , " +spec.getBroker().getUsername());
+        		}
+
+    		}
+    		
+//    		 
+    		 timer = 0;
+    	}
+    	timer ++;
+       
+      }
+      for (CustomerRecord record: notifyOnActivation)
+        record.activate();
+  }
+  
+  //Default function to mutate a tariff 
+  private TariffSpecification mutateTariff(TariffSpecification spec) {
+	  
+	  
+	  
+	  return null;
   }
   
   // Creates initial tariffs for the main power types. These are simple
@@ -425,9 +505,7 @@ implements PortfolioManager, Initializable, Activatable
       }
       //log.info("rateValue = {} for pt {}", rateValue, pt);
       log.info("Tariff {}: rate={}, periodic={}", pt, rateValue, periodicValue);
-      TariffSpecification spec =
-          new TariffSpecification(brokerContext.getBroker(), pt)
-              .withPeriodicPayment(periodicValue);
+      TariffSpecification spec = new TariffSpecification(brokerContext.getBroker(), pt).withPeriodicPayment(periodicValue);
       Rate rate = new Rate().withValue(rateValue);
       if (pt.isInterruptible() && !pt.isStorage()) {
         // set max curtailment
@@ -442,6 +520,7 @@ implements PortfolioManager, Initializable, Activatable
       }
       spec.addRate(rate);
       customerSubscriptions.put(spec, new LinkedHashMap<>());
+      tariffCharges.put(spec,0d);
       tariffRepo.addSpecification(spec);
       brokerContext.sendMessage(spec);
     }
@@ -519,11 +598,9 @@ implements PortfolioManager, Initializable, Activatable
     }
     // Exercise economic controls every 4 timeslots
     if ((timeslotIndex % 4) == 3) {
-      List<TariffSpecification> candidates =
-              tariffRepo.findTariffSpecificationsByPowerType(PowerType.INTERRUPTIBLE_CONSUMPTION);
+      List<TariffSpecification> candidates = tariffRepo.findTariffSpecificationsByPowerType(PowerType.INTERRUPTIBLE_CONSUMPTION);
       for (TariffSpecification spec: candidates) {
-        EconomicControlEvent ece =
-                new EconomicControlEvent(spec, 0.2, timeslotIndex + 1);
+        EconomicControlEvent ece = new EconomicControlEvent(spec, 0.2, timeslotIndex + 1);
         brokerContext.sendMessage(ece);
       }
     }
