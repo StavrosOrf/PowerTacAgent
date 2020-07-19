@@ -1,13 +1,20 @@
 package org.powertac.samplebroker;
 
-import org.powertac.common.config.ConfigurableValue;
-
 //mvn -Pcli -Dexec.args="--sim --boot-data boot1.xml --brokers st1,mc0"
 
 public class Parameters {
+	
+	  public static String MyName = "mc0";
+	
 	  //retail module Parameters	
-	  public static int reevaluation = 20;
+	  public static int reevaluation = 45;
 	  public static int NUM_OF_POPULATION = 50;
+	  
+	  //Mutation Constants
+	  public static double Ebp = 10;
+	  public static double Ep = 0.15;
+	  public static int timeslotMS = 5000;
+	  public static int Ecl = timeslotMS* (4* reevaluation/5);
 	
       //wholesale module Parameters
 	  public static int MAX_ITERATIONS = 1000;

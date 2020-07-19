@@ -21,6 +21,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
@@ -276,6 +277,11 @@ implements PortfolioManager, Initializable, Activatable
       // otherwise, keep track of competing tariffs, and record in the repo
       addCompetingTariff(spec);
       tariffRepo.addSpecification(spec);
+      tariffDB.addTariff(spec.getBroker().getUsername(),spec.getPowerType(),(int)spec.getMinDuration(),
+				spec.getEarlyWithdrawPayment(),spec.getSignupPayment(), spec.getPeriodicPayment(),0, -1, 
+				0, spec.getRates(),spec.getRegulationRates());
+      
+	  printTariff(spec);	
     }
   }
 
@@ -407,6 +413,11 @@ implements PortfolioManager, Initializable, Activatable
         log.warn("Candidate list is null");
         return;
       }
+      
+      competingTariffs.get(original.getPowerType()).remove(original);
+      System.out.print("REVOKE:  ");
+      printTariff(tariffRepo.findSpecificationById(tr.getTariffId()));
+      
       candidates.remove(original);
     }
   }
@@ -417,6 +428,8 @@ implements PortfolioManager, Initializable, Activatable
    */
   public synchronized void handleMessage (BalancingControlEvent bce)
   {
+//	  System.out.println(" Balancing : "  + bce.getTariffId() + " , " + bce.getKwh() 
+//	  									+ " , " + bce.getPayment()+ " , "  + bce.getBroker().getUsername()  );
     log.info("BalancingControlEvent " + bce.getKwh());
   }
 
@@ -431,10 +444,13 @@ implements PortfolioManager, Initializable, Activatable
   @Override // from Activatable
   public synchronized void activate (int timeslotIndex)
   {
+	  
+	  ArrayList<TariffSpecification> t ;
+	  TariffSpecification tempTariff ;
       if (customerSubscriptions.size() == 0) {
         // we (most likely) have no tariffs
         createInitialTariffs();
-      }
+      } 
       else {
     	
         // we have some, are they good enough?
@@ -442,22 +458,50 @@ implements PortfolioManager, Initializable, Activatable
     		System.out.println("Its time");
     		
     		for (TariffSpecification spec : customerSubscriptions.keySet()) {
-    			System.out.println("ID: "+spec.getId()+ " , "+ spec.getPowerType() + " , " + tariffCharges.get(spec));
+    			if(tariffCharges.get(spec) == null)
+    				continue;
     			
+    			if(tariffCharges.get(spec) != 0)
+    				System.out.println("ID: "+spec.getId()+ " , "+ spec.getPowerType() + " , " + tariffCharges.get(spec));
+
     			if(tariffCharges.get(spec) != 0)
     				tariffDB.addTariff(spec.getBroker().getUsername(),spec.getPowerType(),(int)spec.getMinDuration(),
     					spec.getEarlyWithdrawPayment(),spec.getSignupPayment(), spec.getPeriodicPayment(),0, tariffCharges.get(spec), 
     					0, spec.getRates(),spec.getRegulationRates());
     			
-    			tariffCharges.put(spec,0d);
+
+    			
+    			t = tariffDB.getBestTariff(2, spec.getPowerType(),spec.getBroker());
+    			
+    			System.out.print(tariffDB.getNumberOfRecords(spec.getPowerType(),Parameters.MyName)+ "  ");
+    			if(tariffDB.getNumberOfRecords(spec.getPowerType(),Parameters.MyName) < 2)
+    				continue;
+    				   			
+    			if(spec.getPowerType() == PowerType.CONSUMPTION) {
+    				tempTariff = crossoverTariffs(t);
+    				tempTariff = mutateTariff(tempTariff); 
+    				
+//        			tariffCharges.put(spec,0d);
+        			tariffCharges.remove(spec);
+    				
+        			//TODO DELETE from db selected tarriffs
+        			//commit the new tariff
+        			tempTariff.addSupersedes(spec.getId());
+        	        tariffRepo.addSpecification(tempTariff);
+        	        tariffCharges.put(tempTariff,0d);
+        	        brokerContext.sendMessage(tempTariff);
+        	        
+        	        // revoke the old one
+        	        TariffRevoke revoke = new TariffRevoke(brokerContext.getBroker(), spec);
+        	        brokerContext.sendMessage(revoke);
+    			}
+    			
     		}
-    		improveTariffs();
+//    		improveTariffs();
     		System.out.println("Other Tariffs-----------");
     		for (PowerType pt : competingTariffs.keySet()) {
     			for (TariffSpecification spec : competingTariffs.get(pt)) {
-        			System.out.println("ID: "+spec.getId()+ " , "+ spec.getPowerType()
-        				+ " , " +spec.getPeriodicPayment() + " , " +spec.getBroker().getCashBalance() 
-        				+ " , " +spec.getBroker().getUsername());
+        			System.out.println("ID: "+spec.getId()+ " , "+ spec.getPowerType() + " , " +spec.getBroker().getUsername());
         		}
 
     		}
@@ -472,12 +516,109 @@ implements PortfolioManager, Initializable, Activatable
         record.activate();
   }
   
+//Default function to crossover two tariffs 
+  private TariffSpecification crossoverTariffs(ArrayList<TariffSpecification> t) {
+	  Random rnd  = new Random();
+	  if(t.size() == 1)
+		  return t.get(0);
+	  
+	  TariffSpecification t1 = t.get(0);
+	  TariffSpecification t2 = t.get(1);
+	  
+	  
+	  int point = rnd.nextInt(5) ; //0-4 points in a tariff specification
+	  
+	  if(point > 0) {
+		  t1.withPeriodicPayment(t.get(1).getPeriodicPayment());
+		  t2.withPeriodicPayment(t.get(0).getPeriodicPayment());
+		  point --;
+	  }
+	  if(point > 0) {
+		  t1.withMinDuration(t.get(1).getMinDuration());
+		  t2.withMinDuration(t.get(0).getMinDuration());
+		  point --;
+	  }
+	  if(point > 0) {
+		  t1.withEarlyWithdrawPayment(t.get(1).getEarlyWithdrawPayment());
+		  t2.withEarlyWithdrawPayment(t.get(0).getEarlyWithdrawPayment());
+		  point --;
+	  }
+	  if(point > 0) {
+		  t1.withSignupPayment(t.get(1).getSignupPayment());
+		  t2.withSignupPayment(t.get(0).getSignupPayment());
+		  point --;
+	  }
+	  
+	  int r = rnd.nextInt(2);
+	  if (r == 1)
+		  return t1;
+	  else
+		  return t2;
+	  
+  }
+  
   //Default function to mutate a tariff 
   private TariffSpecification mutateTariff(TariffSpecification spec) {
+	  Random rnd = new Random();
+	  System.out.println("Before Mutation---");
+	  printTariff(spec);
+	  double ep = Parameters.Ep;
+	  double ebp = Parameters.Ebp;
+	  int ecl = Parameters.Ecl;
 	  
+	  //Mutating periodic payment
+	  double temp = spec.getPeriodicPayment();
+	  if(temp == 0) {
+		  temp = -1;
+	  }
+	  temp = temp * (1 - ep )+  (temp * (1 +  ep ) - temp * (1 - ep ))*rnd.nextDouble();
+	  spec.withPeriodicPayment(temp);
 	  
+	  //Mutating signup payment
+	  temp = spec.getSignupPayment();
+	  if(temp == 0) {
+		  temp = -ebp;
+	  }
+	  temp = temp + ebp +  (temp -  ebp  - (temp  + ebp ))*rnd.nextDouble();
+//	  spec.withSignupPayment(temp);
 	  
-	  return null;
+	  //Mutating Early withdrawal payment
+	  temp = spec.getEarlyWithdrawPayment();
+	  if(temp == 0) {
+		  temp = -ebp;
+	  }
+	  temp = temp + ebp +  (temp -  ebp  - (temp  + ebp ))*rnd.nextDouble();
+//	  spec.withEarlyWithdrawPayment(temp);
+	  
+	  //Mutating contract length
+	  int tmp = (int)spec.getMinDuration();
+	  if(tmp == 0) {
+		  tmp = rnd.nextInt(ecl);
+	  }
+	  if(ecl >= tmp) {
+		  ecl = tmp/2;
+	  }
+	  tmp = tmp - ecl + rnd.nextInt(2*ecl);
+//	  spec.withMinDuration(tmp);
+	 
+	  printTariff(spec);
+	  System.out.println("After Mutation---");
+	  return spec;
+  }
+  
+  public void printTariff(TariffSpecification t) {
+	  
+	  int n1 = -1,n2 =1;
+	  if(t.getRates() != null)
+		  n1 = t.getRates().size();
+	  
+	  if(t.getRegulationRates() != null) {
+		  n2 = t.getRegulationRates().size();
+	  }
+	  
+      System.out.printf("T_id:%d %.30s, %.5s| Periodic: %5.7f Signup:%5.2f Ewp:%5.2f ContractL:%5d ts Rates:%3d RegRates:%3d\n",
+      t.getId(), t.getPowerType().toString(),t.getBroker().getUsername(),t.getPeriodicPayment(),
+      t.getSignupPayment(),t.getEarlyWithdrawPayment(),t.getMinDuration()/5000,n1,n2);
   }
   
   // Creates initial tariffs for the main power types. These are simple

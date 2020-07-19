@@ -13,7 +13,6 @@ import java.util.List;
 import org.apache.derby.jdbc.EmbeddedDriver;
 import org.powertac.common.Broker;
 import org.powertac.common.Rate;
-import org.powertac.common.RateCore;
 import org.powertac.common.RegulationRate;
 import org.powertac.common.TariffSpecification;
 import org.powertac.common.enumerations.PowerType;
@@ -41,7 +40,7 @@ public class Database {
 //	      e.getBestTariff(2, PowerType.CONSUMPTION, new Broker("st"));
 //	      System.out.println("-------------");
 //	      e.deleteWorstTariff(PowerType.CONSUMPTION);
-	      System.out.println("Number of records: "+e.getNumberOfRecords(PowerType.CONSUMPTION));
+	      System.out.println("Number of records: "+e.getNumberOfRecords(PowerType.CONSUMPTION,"mc0"));
 	      e.getBestTariff(20, PowerType.CONSUMPTION, new Broker("st"));
 	      e.shutdown();
 	   }
@@ -121,7 +120,8 @@ public class Database {
 	         stmt.execute(createSQL);
 	         stmt.execute(createSQLRate);
 	         stmt.execute(createSQLRegRate);
-	         
+
+	         conn.commit();
 	         return;
 //	         pstmt = conn.prepareStatement("insert into Tariffs(broker,powerType,contractLength,"
 //			     		+ "ewPenalty,signupBonus,periodicPayment,tariffRate,fitnessValue,"
@@ -198,11 +198,11 @@ public class Database {
 //			System.out.println("1231");
 	        while (rs.next() && counter < n) {
 //	        	System.out.println("1+ " + n);
-	           System.out.printf("%d %s %s %s %s %s %s %s %s %s \n",
-	           rs.getInt(1), rs.getString(2),
-	           rs.getString(3), rs.getString(4),
-	           rs.getInt(5), rs.getString(6),
-	           rs.getString(7), rs.getString(8), rs.getString(9), rs.getString(10));
+//	           System.out.printf("%d %s %s %s %s %s %s %s %s %s \n",
+//	           rs.getInt(1), rs.getString(2),
+//	           rs.getString(3), rs.getString(4),
+//	           rs.getInt(5), rs.getString(6),
+//	           rs.getString(7), rs.getString(8), rs.getString(9), rs.getString(10));
 	           spec.withEarlyWithdrawPayment(rs.getDouble(5));
 	           spec.withPeriodicPayment(rs.getDouble(7));
 	           spec.withSignupPayment(rs.getDouble(6));
@@ -291,8 +291,8 @@ public class Database {
         		double fitnessValue, int level,List<Rate> rates,List<RegulationRate> regrates) {
 		   	
 		 try {
-			 if(getNumberOfRecords(powerType) > Parameters.NUM_OF_POPULATION) {
-				 deleteWorstTariff(powerType);
+			 if(getNumberOfRecords(powerType,broker) > Parameters.NUM_OF_POPULATION) {
+				 deleteWorstTariff(powerType,broker);
 			 }
 			
 			pstmt = conn.prepareStatement("insert into Tariffs(broker,powerType,contractLength,"
@@ -353,13 +353,13 @@ public class Database {
 	       
 	   }
 	 
-	public void deleteWorstTariff(PowerType pt) {
+	public void deleteWorstTariff(PowerType pt,String Broker) {
 		
 		try {
 			rs = stmt.executeQuery("select fitnessValue,id from tariffs where powerType = '" +pt.toString() 
-			+"'order by fitnessValue asc ");
+			+"' and broker = '"+ Broker +"'  order by fitnessValue asc ");
 			rs.next();
-			double worstFittnessValue = rs.getDouble(1);
+//			double worstFittnessValue = rs.getDouble(1);
 			int id =rs.getInt(2);
 //			System.out.println(worstFittnessValue+ "  , "+ id);
 			
@@ -376,11 +376,17 @@ public class Database {
 		}
 	}
 	
-	public int getNumberOfRecords(PowerType pt) {
+	public int getNumberOfRecords(PowerType pt, String brokerName) {
 		
 		try {
-			rs = stmt.executeQuery("select count(*) from tariffs where powerType = '" +pt.toString() 
-			+"'");
+			if( brokerName == "*") {
+				rs = stmt.executeQuery("select count(*) from tariffs where powerType = '" +pt.toString() 
+				+"' ");
+			}else {
+				rs = stmt.executeQuery("select count(*) from tariffs where powerType = '" +pt.toString() 
+				+"' and broker = '" + brokerName + "'");
+			}
+
 
 			rs.next();
 //			System.out.println(rs.getInt(1));
