@@ -22,6 +22,11 @@ import java.util.Iterator;
 import java.util.Random;
 
 import org.apache.logging.log4j.Logger;
+import org.joda.time.Chronology;
+import org.joda.time.DateTimeField;
+import org.joda.time.DateTimeFieldType;
+import org.joda.time.DurationFieldType;
+import org.joda.time.Instant;
 import org.apache.logging.log4j.LogManager;
 import org.powertac.common.BalancingTransaction;
 import org.powertac.common.CapacityTransaction;
@@ -107,6 +112,15 @@ implements MarketManager, Initializable, Activatable
   private double[] marketMWh;
   private double[] marketPrice;
   private double meanMarketPrice = 0.0;
+  
+  private double clearingPricesWe[] = new double[24];
+  private double clearingPricesWd[] = new double[24];
+  private int tradesPassedWe = 0;
+  private int tradesPassedWd = 0;
+  
+  public int numberOfBrokers = -1;
+  
+  private Instant startTime = null;
 
   public MarketManagerService ()
   {
@@ -152,6 +166,14 @@ implements MarketManager, Initializable, Activatable
   public synchronized void handleMessage (Competition comp)
   {
     minMWh = Math.max(minMWh, comp.getMinimumOrderQuantity());
+    System.out.println("Competitors");
+    for (String s : comp.getBrokers()) {
+		System.out.println(s);
+	}
+    
+    startTime = comp.getSimulationBaseTime();
+    
+    numberOfBrokers = comp.getBrokers().size() -1;
   }
 
   /**
@@ -168,6 +190,20 @@ implements MarketManager, Initializable, Activatable
    */
   public synchronized void handleMessage (ClearedTrade ct)
   {
+	  //TODO
+	  int ts = ct.getTimeslotIndex();
+	  
+	  if(getTimeSlotDay(ts)  <6) {
+		  clearingPricesWd[getTimeSlotHour(ts)] += ct.getExecutionPrice();
+		  tradesPassedWd ++;
+	  }else {
+		  clearingPricesWe[getTimeSlotHour(ts)] += ct.getExecutionPrice();
+		  tradesPassedWe ++;
+
+	  }
+
+	  
+
   }
 
   /**
@@ -276,6 +312,8 @@ implements MarketManager, Initializable, Activatable
    */
   public synchronized void handleMessage (BalanceReport report)
   {
+//	  report.getTimeslotIndex()
+//	  System.out.println("Imbalance: " + report.getNetImbalance());
   }
 
   // ----------- per-timeslot activation ---------------
@@ -587,4 +625,33 @@ implements MarketManager, Initializable, Activatable
     	return 0.0;
       //return null; // market order
   }
+  
+  public int getCompetitors() {
+	  return numberOfBrokers;
+  }
+  
+  /**
+   * Start time of a sim session in the sim world. This is actually the start
+   * of the bootstrap session, which is typically 15 days before the start of
+   * a normal sim session.
+   */
+//  public Instant getSimulationBaseTime ()
+//  {
+//    return simulationBaseTime;
+//  }
+  
+  public int getTimeSlotDay(int t) {
+
+	 int day =  startTime.get(DateTimeFieldType.dayOfWeek()); 
+	 
+	  return (day + t/24) % 7 + 1;
+  }
+  
+  public int getTimeSlotHour(int t) {
+	  
+	  int hour =  startTime.get(DateTimeFieldType.hourOfDay());
+
+	  return( t+hour ) % 24;
+  }
+  
 }

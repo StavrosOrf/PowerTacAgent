@@ -26,4 +26,6 @@ public interface MarketManager
    * Returns the mean price observed in the market
    */
   public double getMeanMarketPrice ();
+  
+  public int getCompetitors();
 }

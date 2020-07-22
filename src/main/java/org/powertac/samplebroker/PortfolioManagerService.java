@@ -31,20 +31,15 @@ import org.powertac.common.Competition;
 import org.powertac.common.CustomerInfo;
 import org.powertac.common.Rate;
 import org.powertac.common.RegulationRate;
-import org.powertac.common.RegulationRate.ResponseTime;
-import org.powertac.common.Tariff;
 import org.powertac.common.TariffSpecification;
 import org.powertac.common.TariffTransaction;
 import org.powertac.common.TimeService;
 import org.powertac.common.config.ConfigurableValue;
 import org.powertac.common.enumerations.PowerType;
 import org.powertac.common.msg.BalancingControlEvent;
-import org.powertac.common.msg.BalancingOrder;
 import org.powertac.common.msg.CustomerBootstrapData;
-import org.powertac.common.msg.EconomicControlEvent;
 import org.powertac.common.msg.TariffRevoke;
 import org.powertac.common.msg.TariffStatus;
-import org.powertac.common.repo.BrokerRepo;
 import org.powertac.common.repo.CustomerRepo;
 import org.powertac.common.repo.TariffRepo;
 import org.powertac.common.repo.TimeslotRepo;
@@ -145,6 +140,8 @@ implements PortfolioManager, Initializable, Activatable
     tariffCharges = new LinkedHashMap<TariffSpecification, Double>();
     competingTariffs = new HashMap<>();
     tariffDB = new Database();
+    
+    tariffDB.resetGameLevel(2);
     
     notifyOnActivation.clear();
   }
@@ -277,10 +274,20 @@ implements PortfolioManager, Initializable, Activatable
       // otherwise, keep track of competing tariffs, and record in the repo
       addCompetingTariff(spec);
       tariffRepo.addSpecification(spec);
-      tariffDB.addTariff(spec.getBroker().getUsername(),spec.getPowerType(),(int)spec.getMinDuration(),
-				spec.getEarlyWithdrawPayment(),spec.getSignupPayment(), spec.getPeriodicPayment(),0, -1, 
-				0, spec.getRates(),spec.getRegulationRates());
       
+      boolean isInitial = false;
+      
+      if(timeslotRepo.currentTimeslot().getSerialNumber() < 365) {
+    	  isInitial = true;
+      }
+      
+      for (int i = 0; i <3; i++) {
+    	  tariffDB.addTariff(spec.getBroker().getUsername(),spec.getPowerType(),(int)spec.getMinDuration(),
+				spec.getEarlyWithdrawPayment(),spec.getSignupPayment(), spec.getPeriodicPayment(),0, -1, 
+				i, spec.getRates(),spec.getRegulationRates(),timeslotRepo.currentTimeslot().getSerialNumber()
+				,marketManager.getCompetitors(),isInitial);
+      }
+      System.out.print("New Tariff: ");
 	  printTariff(spec);	
     }
   }
@@ -415,7 +422,7 @@ implements PortfolioManager, Initializable, Activatable
       }
       
       competingTariffs.get(original.getPowerType()).remove(original);
-      System.out.print("REVOKE:  ");
+      System.out.print("REVOKE: " + tr.getTariffId() + "  ");
       printTariff(tariffRepo.findSpecificationById(tr.getTariffId()));
       
       candidates.remove(original);
@@ -447,6 +454,8 @@ implements PortfolioManager, Initializable, Activatable
 	  
 	  ArrayList<TariffSpecification> t ;
 	  TariffSpecification tempTariff ;
+	  
+	  System.out.println("Usage : " + collectUsage(timeslotIndex));
       if (customerSubscriptions.size() == 0) {
         // we (most likely) have no tariffs
         createInitialTariffs();
@@ -456,25 +465,40 @@ implements PortfolioManager, Initializable, Activatable
         // we have some, are they good enough?
     	if(timer == Parameters.reevaluation) {
     		System.out.println("Its time");
+    		tariffDB.decayFittnessValue(0);
+    		tariffDB.decayFittnessValue(1);
     		
     		for (TariffSpecification spec : customerSubscriptions.keySet()) {
     			if(tariffCharges.get(spec) == null)
     				continue;
     			
-    			if(tariffCharges.get(spec) != 0)
-    				System.out.println("ID: "+spec.getId()+ " , "+ spec.getPowerType() + " , " + tariffCharges.get(spec));
+    			if(tariffCharges.get(spec) != 0) {
+//    				System.out.println("ID: "+spec.getId()+ " , "+ spec.getPowerType() + " , " + tariffCharges.get(spec));
+    				System.out.print( " --Profit:" + tariffCharges.get(spec)+ "  ");
+    				printTariff(spec);
+    			}
+    			
+    			//add tariff to Ground Level
+    			if(tariffCharges.get(spec) != 0) {
+    				
+    				boolean isInitial = false;
+    				if(timeslotRepo.currentTimeslot().getSerialNumber() == 361 + Parameters.reevaluation)		
+    					isInitial = true;
+    				
+    				for (int i = 0; i <3; i++) {
+        				tariffDB.addTariff(spec.getBroker().getUsername(),spec.getPowerType(),(int)spec.getMinDuration(),
+            					spec.getEarlyWithdrawPayment(),spec.getSignupPayment(), spec.getPeriodicPayment(),0, tariffCharges.get(spec), 
+            					i, spec.getRates(),spec.getRegulationRates(),timeslotRepo.currentTimeslot().getSerialNumber()
+            					,marketManager.getCompetitors(),isInitial);
+						
+					}
+    			}
 
-    			if(tariffCharges.get(spec) != 0)
-    				tariffDB.addTariff(spec.getBroker().getUsername(),spec.getPowerType(),(int)spec.getMinDuration(),
-    					spec.getEarlyWithdrawPayment(),spec.getSignupPayment(), spec.getPeriodicPayment(),0, tariffCharges.get(spec), 
-    					0, spec.getRates(),spec.getRegulationRates());
     			
-
+    			t = tariffDB.getBestTariff(2, spec.getPowerType(),spec.getBroker(),1,false,marketManager.getCompetitors());
     			
-    			t = tariffDB.getBestTariff(2, spec.getPowerType(),spec.getBroker());
-    			
-    			System.out.print(tariffDB.getNumberOfRecords(spec.getPowerType(),Parameters.MyName)+ "  ");
-    			if(tariffDB.getNumberOfRecords(spec.getPowerType(),Parameters.MyName) < 2)
+//    			System.out.print(tariffDB.getNumberOfRecords(spec.getPowerType(),Parameters.MyName)+ "  ");
+    			if(tariffDB.getNumberOfRecords(spec.getPowerType(),Parameters.MyName,1,false,marketManager.getCompetitors()) < 2)
     				continue;
     				   			
     			if(spec.getPowerType() == PowerType.CONSUMPTION) {
@@ -501,7 +525,8 @@ implements PortfolioManager, Initializable, Activatable
     		System.out.println("Other Tariffs-----------");
     		for (PowerType pt : competingTariffs.keySet()) {
     			for (TariffSpecification spec : competingTariffs.get(pt)) {
-        			System.out.println("ID: "+spec.getId()+ " , "+ spec.getPowerType() + " , " +spec.getBroker().getUsername());
+//        			System.out.println("ID: "+spec.getId()+ " , "+ spec.getPowerType() + " , " +spec.getBroker().getUsername());
+        			printTariff(spec);
         		}
 
     		}
@@ -516,6 +541,44 @@ implements PortfolioManager, Initializable, Activatable
         record.activate();
   }
   
+  //Function producing time of use rates for the given tariff
+  private TariffSpecification produceTOURates(TariffSpecification t, double avg){
+	  
+	  TariffSpecification spec = new TariffSpecification(t.getBroker(),t.getPowerType());
+	  spec.withEarlyWithdrawPayment(t.getEarlyWithdrawPayment());
+	  spec.withMinDuration(t.getMinDuration());
+	  spec.withPeriodicPayment(t.getPeriodicPayment());
+	  spec.withSignupPayment(t.getSignupPayment());
+	  
+	  for(int i = 0; i<24 ; i++) {
+		  Rate r = new Rate();
+		  r.withWeeklyBegin(1);
+		  r.withWeeklyEnd(5);
+		  r.withDailyBegin(i);
+		  if(i != 23)
+			  r.withDailyEnd(i+1);
+		  else
+			  r.withDailyEnd(0);
+		  
+		  r.withMinValue(0.1);
+		  spec.addRate(r);
+	  }
+	  
+	  for(int i = 0; i<24 ; i++) {
+		  Rate r = new Rate();
+		  r.withWeeklyBegin(6);
+		  r.withWeeklyEnd(7);
+		  r.withDailyBegin(i);
+		  if(i != 23)
+			  r.withDailyEnd(i+1);
+		  else
+			  r.withDailyEnd(0);
+		  
+		  r.withMinValue(0.1);
+		  spec.addRate(r);
+	  }
+	  return spec ;
+  }
 //Default function to crossover two tariffs 
   private TariffSpecification crossoverTariffs(ArrayList<TariffSpecification> t) {
 	  Random rnd  = new Random();
@@ -574,6 +637,14 @@ implements PortfolioManager, Initializable, Activatable
 	  temp = temp * (1 - ep )+  (temp * (1 +  ep ) - temp * (1 - ep ))*rnd.nextDouble();
 	  spec.withPeriodicPayment(temp);
 	  
+	  //Mutating avg rate value
+	  //temp = spec.ge;
+	  if(temp == 0) {
+		  temp = -1;
+	  }
+	  temp = temp * (1 - ep )+  (temp * (1 +  ep ) - temp * (1 - ep ))*rnd.nextDouble();
+	  spec.withPeriodicPayment(temp);
+	  
 	  //Mutating signup payment
 	  temp = spec.getSignupPayment();
 	  if(temp == 0) {
@@ -608,17 +679,27 @@ implements PortfolioManager, Initializable, Activatable
   
   public void printTariff(TariffSpecification t) {
 	  
-	  int n1 = -1,n2 =1;
-	  if(t.getRates() != null)
+	  int n1 = -1,n2 = -1;
+	  double a1 = 0;
+	  if(t.getRates() != null) {
+		  for (Rate r : t.getRates()) {
+			a1 += r.getMinValue();
+		  }
+		  
 		  n1 = t.getRates().size();
-	  
+		  a1 = a1 / n1;
+	  }
 	  if(t.getRegulationRates() != null) {
 		  n2 = t.getRegulationRates().size();
 	  }
+
+//	  if(t.getExpiration() != null) {
+//		  System.out.print(t.getExpiration().toDateTime().toString());
+//	  }
 	  
-      System.out.printf("T_id:%d %.30s, %.5s| Periodic: %5.7f Signup:%5.2f Ewp:%5.2f ContractL:%5d ts Rates:%3d RegRates:%3d\n",
+      System.out.printf("T_id:%d %30s, %15s| Periodic: %5.7f Signup:%5.2f Ewp:%5.2f ContractL:%10d ts | Rates:%3d Avg:%3.4f  RegRates:%3d \n",
       t.getId(), t.getPowerType().toString(),t.getBroker().getUsername(),t.getPeriodicPayment(),
-      t.getSignupPayment(),t.getEarlyWithdrawPayment(),t.getMinDuration()/5000,n1,n2);
+      t.getSignupPayment(),t.getEarlyWithdrawPayment(),t.getMinDuration()/5000,n1,a1,n2);
   }
   
   // Creates initial tariffs for the main power types. These are simple
@@ -668,84 +749,84 @@ implements PortfolioManager, Initializable, Activatable
   }
 
   // Checks to see whether our tariffs need fine-tuning
-  private void improveTariffs()
-  {
-    // quick magic-number hack to inject a balancing order
-    int timeslotIndex = timeslotRepo.currentTimeslot().getSerialNumber();
-    if (371 == timeslotIndex) {
-      for (TariffSpecification spec :
-           tariffRepo.findTariffSpecificationsByBroker(brokerContext.getBroker())) {
-        if (PowerType.INTERRUPTIBLE_CONSUMPTION == spec.getPowerType()) {
-          BalancingOrder order = new BalancingOrder(brokerContext.getBroker(),
-                                                    spec, 
-                                                    0.5,
-                                                    spec.getRates().get(0).getMinValue() * 0.9);
-          brokerContext.sendMessage(order);
-        }
-      }
-      // add a battery storage tariff with overpriced regulation
-      // should get no subscriptions...
-      TariffSpecification spec = 
-              new TariffSpecification(brokerContext.getBroker(),
-                                      PowerType.BATTERY_STORAGE);
-      Rate rate = new Rate().withValue(-0.2);
-      spec.addRate(rate);
-      RegulationRate rr = new RegulationRate();
-      rr.withUpRegulationPayment(10.0)
-      .withDownRegulationPayment(-10.0); // magic numbers
-      spec.addRate(rr);
-      tariffRepo.addSpecification(spec);
-      brokerContext.sendMessage(spec);
-    }
-    // magic-number hack to supersede a tariff
-    if (380 == timeslotIndex) {
-      // find the existing CONSUMPTION tariff
-      TariffSpecification oldc = null;
-      List<TariffSpecification> candidates =
-        tariffRepo.findTariffSpecificationsByBroker(brokerContext.getBroker());
-      if (null == candidates || 0 == candidates.size())
-        log.error("No tariffs found for broker");
-      else {
-        // oldc = candidates.get(0);
-        for (TariffSpecification candidate: candidates) {
-          if (candidate.getPowerType() == PowerType.CONSUMPTION) {
-            oldc = candidate;
-            break;
-          }
-        }
-        if (null == oldc) {
-          log.warn("No CONSUMPTION tariffs found");
-        }
-        else {
-          double rateValue = oldc.getRates().get(0).getValue();
-          // create a new CONSUMPTION tariff
-          TariffSpecification spec =
-            new TariffSpecification(brokerContext.getBroker(),
-                                    PowerType.CONSUMPTION)
-                .withPeriodicPayment(defaultPeriodicPayment * 1.1);
-          Rate rate = new Rate().withValue(rateValue);
-          spec.addRate(rate);
-          if (null != oldc)
-            spec.addSupersedes(oldc.getId());
-          //mungId(spec, 6);
-          tariffRepo.addSpecification(spec);
-          brokerContext.sendMessage(spec);
-          // revoke the old one
-          TariffRevoke revoke =
-            new TariffRevoke(brokerContext.getBroker(), oldc);
-          brokerContext.sendMessage(revoke);
-        }
-      }
-    }
-    // Exercise economic controls every 4 timeslots
-    if ((timeslotIndex % 4) == 3) {
-      List<TariffSpecification> candidates = tariffRepo.findTariffSpecificationsByPowerType(PowerType.INTERRUPTIBLE_CONSUMPTION);
-      for (TariffSpecification spec: candidates) {
-        EconomicControlEvent ece = new EconomicControlEvent(spec, 0.2, timeslotIndex + 1);
-        brokerContext.sendMessage(ece);
-      }
-    }
-  }
+//  private void improveTariffs()
+//  {
+//    // quick magic-number hack to inject a balancing order
+//    int timeslotIndex = timeslotRepo.currentTimeslot().getSerialNumber();
+//    if (371 == timeslotIndex) {
+//      for (TariffSpecification spec :
+//           tariffRepo.findTariffSpecificationsByBroker(brokerContext.getBroker())) {
+//        if (PowerType.INTERRUPTIBLE_CONSUMPTION == spec.getPowerType()) {
+//          BalancingOrder order = new BalancingOrder(brokerContext.getBroker(),
+//                                                    spec, 
+//                                                    0.5,
+//                                                    spec.getRates().get(0).getMinValue() * 0.9);
+//          brokerContext.sendMessage(order);
+//        }
+//      }
+//      // add a battery storage tariff with overpriced regulation
+//      // should get no subscriptions...
+//      TariffSpecification spec = 
+//              new TariffSpecification(brokerContext.getBroker(),
+//                                      PowerType.BATTERY_STORAGE);
+//      Rate rate = new Rate().withValue(-0.2);
+//      spec.addRate(rate);
+//      RegulationRate rr = new RegulationRate();
+//      rr.withUpRegulationPayment(10.0)
+//      .withDownRegulationPayment(-10.0); // magic numbers
+//      spec.addRate(rr);
+//      tariffRepo.addSpecification(spec);
+//      brokerContext.sendMessage(spec);
+//    }
+//    // magic-number hack to supersede a tariff
+//    if (380 == timeslotIndex) {
+//      // find the existing CONSUMPTION tariff
+//      TariffSpecification oldc = null;
+//      List<TariffSpecification> candidates =
+//        tariffRepo.findTariffSpecificationsByBroker(brokerContext.getBroker());
+//      if (null == candidates || 0 == candidates.size())
+//        log.error("No tariffs found for broker");
+//      else {
+//        // oldc = candidates.get(0);
+//        for (TariffSpecification candidate: candidates) {
+//          if (candidate.getPowerType() == PowerType.CONSUMPTION) {
+//            oldc = candidate;
+//            break;
+//          }
+//        }
+//        if (null == oldc) {
+//          log.warn("No CONSUMPTION tariffs found");
+//        }
+//        else {
+//          double rateValue = oldc.getRates().get(0).getValue();
+//          // create a new CONSUMPTION tariff
+//          TariffSpecification spec =
+//            new TariffSpecification(brokerContext.getBroker(),
+//                                    PowerType.CONSUMPTION)
+//                .withPeriodicPayment(defaultPeriodicPayment * 1.1);
+//          Rate rate = new Rate().withValue(rateValue);
+//          spec.addRate(rate);
+//          if (null != oldc)
+//            spec.addSupersedes(oldc.getId());
+//          //mungId(spec, 6);
+//          tariffRepo.addSpecification(spec);
+//          brokerContext.sendMessage(spec);
+//          // revoke the old one
+//          TariffRevoke revoke =
+//            new TariffRevoke(brokerContext.getBroker(), oldc);
+//          brokerContext.sendMessage(revoke);
+//        }
+//      }
+//    }
+//    // Exercise economic controls every 4 timeslots
+//    if ((timeslotIndex % 4) == 3) {
+//      List<TariffSpecification> candidates = tariffRepo.findTariffSpecificationsByPowerType(PowerType.INTERRUPTIBLE_CONSUMPTION);
+//      for (TariffSpecification spec: candidates) {
+//        EconomicControlEvent ece = new EconomicControlEvent(spec, 0.2, timeslotIndex + 1);
+//        brokerContext.sendMessage(ece);
+//      }
+//    }
+//  }
 
   // ------------- test-support methods ----------------
   double getUsageForCustomer (CustomerInfo customer,

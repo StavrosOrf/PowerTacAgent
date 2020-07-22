@@ -7,8 +7,12 @@ public class Parameters {
 	  public static String MyName = "mc0";
 	
 	  //retail module Parameters	
-	  public static int reevaluation = 45;
+	  public static int reevaluation = 25;
+	  
+	  //Database related parameters
 	  public static int NUM_OF_POPULATION = 50;
+	  public static double GroundLevelDecayFactor = 0.01;
+	  public static double TourLevelDecayFactor = 0.02;
 	  
 	  //Mutation Constants
 	  public static double Ebp = 10;
