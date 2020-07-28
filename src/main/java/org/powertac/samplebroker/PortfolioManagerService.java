@@ -455,7 +455,7 @@ implements PortfolioManager, Initializable, Activatable
 	  ArrayList<TariffSpecification> t ;
 	  TariffSpecification tempTariff ;
 	  
-	  System.out.println("Usage : " + collectUsage(timeslotIndex));
+	  //System.out.println("Usage : " + collectUsage(timeslotIndex));
       if (customerSubscriptions.size() == 0) {
         // we (most likely) have no tariffs
         createInitialTariffs();
@@ -503,12 +503,10 @@ implements PortfolioManager, Initializable, Activatable
     				   			
     			if(spec.getPowerType() == PowerType.CONSUMPTION) {
     				tempTariff = crossoverTariffs(t);
-    				tempTariff = mutateTariff(tempTariff); 
-    				
-//        			tariffCharges.put(spec,0d);
+    				tempTariff = mutateConsumptionTariff(tempTariff);   				
         			tariffCharges.remove(spec);
     				
-        			//TODO DELETE from db selected tarriffs
+        			//TODO DELETE from db selected tariffs
         			//commit the new tariff
         			tempTariff.addSupersedes(spec.getId());
         	        tariffRepo.addSpecification(tempTariff);
@@ -518,8 +516,25 @@ implements PortfolioManager, Initializable, Activatable
         	        // revoke the old one
         	        TariffRevoke revoke = new TariffRevoke(brokerContext.getBroker(), spec);
         	        brokerContext.sendMessage(revoke);
+    			} else if(spec.getPowerType().isStorage()){
+    				tempTariff = crossoverTariffs(t);
+    				tempTariff = mutateStorageTariff(tempTariff);   				
+        			tariffCharges.remove(spec);
+        			
+        			tempTariff.addSupersedes(spec.getId());
+        	        tariffRepo.addSpecification(tempTariff);
+        	        tariffCharges.put(tempTariff,0d);
+        	        brokerContext.sendMessage(tempTariff);
+    			} else if(spec.getPowerType().isProduction()) {
+    				tempTariff = crossoverTariffs(t);
+    				tempTariff = mutateProductionTariff(tempTariff);   				
+        			tariffCharges.remove(spec);
+        			
+        			tempTariff.addSupersedes(spec.getId());
+        	        tariffRepo.addSpecification(tempTariff);
+        	        tariffCharges.put(tempTariff,0d);
+        	        brokerContext.sendMessage(tempTariff);
     			}
-    			
     		}
 //    		improveTariffs();
     		System.out.println("Other Tariffs-----------");
@@ -528,7 +543,6 @@ implements PortfolioManager, Initializable, Activatable
 //        			System.out.println("ID: "+spec.getId()+ " , "+ spec.getPowerType() + " , " +spec.getBroker().getUsername());
         			printTariff(spec);
         		}
-
     		}
     		
 //    		 
@@ -550,6 +564,27 @@ implements PortfolioManager, Initializable, Activatable
 	  spec.withPeriodicPayment(t.getPeriodicPayment());
 	  spec.withSignupPayment(t.getSignupPayment());
 	  
+	  double clearingPriceWd[] = marketManager.getAvgClearingPriceWd();
+	  double clearingPriceWe[] = marketManager.getAvgClearingPriceWe();
+	  double netUsageWd[] = marketManager.getAvgNetusageWd();
+	  double netUsageWe[] = marketManager.getAvgNetusageWe();
+	  double wWe[] = new double[24];
+	  double wWd[] = new double[24];
+	  double sumWe = 0, sumWd = 0;
+	  //TOU formula
+	  for(int i = 0; i<24 ; i++) {
+		  wWd[i] = clearingPriceWd[i]*netUsageWd[i];
+		  wWe[i] = clearingPriceWe[i]*netUsageWe[i];
+		  
+		  sumWe += wWe[i];
+		  sumWd += wWd[i];  
+	  }
+	  //normalize
+	  for(int i = 0; i<24 ; i++) {
+		  wWd[i] *= 24/sumWd;
+		  wWe[i] *= 24/sumWe;
+	  }  
+	   
 	  for(int i = 0; i<24 ; i++) {
 		  Rate r = new Rate();
 		  r.withWeeklyBegin(1);
@@ -560,7 +595,8 @@ implements PortfolioManager, Initializable, Activatable
 		  else
 			  r.withDailyEnd(0);
 		  
-		  r.withMinValue(0.1);
+		  r.withMinValue(avg*wWe[i]);
+//		  System.out.println(avg*wWe[i]);
 		  spec.addRate(r);
 	  }
 	  
@@ -574,7 +610,8 @@ implements PortfolioManager, Initializable, Activatable
 		  else
 			  r.withDailyEnd(0);
 		  
-		  r.withMinValue(0.1);
+		  r.withMinValue(avg*wWd[i]);
+//		  System.out.println(avg*wWd[i]);
 		  spec.addRate(r);
 	  }
 	  return spec ;
@@ -620,11 +657,17 @@ implements PortfolioManager, Initializable, Activatable
 	  
   }
   
-  //Default function to mutate a tariff 
-  private TariffSpecification mutateTariff(TariffSpecification spec) {
+  private TariffSpecification mutateProductionTariff(TariffSpecification t) {
 	  Random rnd = new Random();
 	  System.out.println("Before Mutation---");
-	  printTariff(spec);
+	  printTariff(t);
+	  
+	  TariffSpecification spec = new TariffSpecification(t.getBroker(),t.getPowerType());
+	  spec.withEarlyWithdrawPayment(t.getEarlyWithdrawPayment());
+	  spec.withMinDuration(t.getMinDuration());
+	  spec.withPeriodicPayment(t.getPeriodicPayment());
+	  spec.withSignupPayment(t.getSignupPayment());
+	  
 	  double ep = Parameters.Ep;
 	  double ebp = Parameters.Ebp;
 	  int ecl = Parameters.Ecl;
@@ -632,19 +675,154 @@ implements PortfolioManager, Initializable, Activatable
 	  //Mutating periodic payment
 	  double temp = spec.getPeriodicPayment();
 	  if(temp == 0) {
-		  temp = -1;
+		  temp = -6.5;
 	  }
 	  temp = temp * (1 - ep )+  (temp * (1 +  ep ) - temp * (1 - ep ))*rnd.nextDouble();
 	  spec.withPeriodicPayment(temp);
-	  
-	  //Mutating avg rate value
-	  //temp = spec.ge;
+	  	  
+	  //Mutating signup payment
+	  temp = spec.getSignupPayment();
 	  if(temp == 0) {
-		  temp = -1;
+		  temp = ebp;
+	  }
+	  temp = temp + ebp +  (temp -  ebp  - (temp  + ebp ))*rnd.nextDouble();
+	  spec.withSignupPayment(temp);
+	  
+	  //Mutating Early withdrawal payment
+	  spec.withEarlyWithdrawPayment(-2*temp);
+	  
+	  //Mutating contract length
+	  int tmp = (int)spec.getMinDuration();
+	  if(tmp < ecl/2) {
+		  tmp = rnd.nextInt(ecl)+2;
+	  }
+//	  if(ecl >= tmp) {
+//		  ecl = tmp/2;
+//	  }
+//	  if(ecl<0) {
+//		  ecl = - ecl;
+//	  }
+//	  tmp = tmp - ecl + rnd.nextInt(2*ecl);
+	  spec.withMinDuration(ecl);
+	  
+	  temp = t.getRates().get(0).getMinValue();
+	  if(temp == 0) {
+		  temp =0.01;
 	  }
 	  temp = temp * (1 - ep )+  (temp * (1 +  ep ) - temp * (1 - ep ))*rnd.nextDouble();
-	  spec.withPeriodicPayment(temp);
+	
+	  Rate r = new Rate().withMinValue(temp);
+	  spec.addRate(r);
 	  
+	  printTariff(spec);
+	  System.out.println("After Mutation---");
+	  return spec;
+  }
+  
+  //Default function to mutate a tariff 
+  private TariffSpecification mutateStorageTariff(TariffSpecification spec) {
+	  Random rnd = new Random();
+	  System.out.println("Before Mutation---");
+	  printTariff(spec);
+	  double ep = Parameters.Ep;
+	  double ebp = Parameters.Ebp;
+	  double eReg = Parameters.Ereg;
+	  int ecl = Parameters.Ecl;
+	  
+	  //Mutating periodic payment
+	  double temp = spec.getPeriodicPayment();
+	  if(temp != 0) {
+		  temp = 0;
+	  }
+
+	  //Mutating signup payment
+	  temp = spec.getSignupPayment();
+	  if(temp == 0) {
+		  temp = ebp;
+	  }
+	  temp = temp + ebp +  (temp -  ebp  - (temp  + ebp ))*rnd.nextDouble();
+	  spec.withSignupPayment(temp);
+	  
+	  //Mutating Early withdrawal payment
+	  spec.withEarlyWithdrawPayment(-2*temp);
+	  
+	  //Mutating contract length
+	  int tmp = (int)spec.getMinDuration();
+	  if(tmp < ecl/2) {
+		  tmp = rnd.nextInt(ecl)+1;
+	  }
+	  if(ecl >= tmp) {
+		  ecl = tmp/2;
+	  }
+	  tmp = tmp - ecl + rnd.nextInt(2*ecl);
+	  spec.withMinDuration(tmp);
+	  
+	  double a1 = 0;
+	  temp = 0;
+	  if(spec.getRates() != null) {
+		  for (Rate r : spec.getRates()) {
+			a1 += r.getMinValue();
+		  }
+		  
+		  int n1 = spec.getRates().size();
+		  temp = a1 / n1;
+	  }
+	  if(temp == 0) {
+		  temp = -0.1;
+	  }
+	  temp = temp * (1 - ep )+  (temp * (1 +  ep ) - temp * (1 - ep ))*rnd.nextDouble();
+	
+	  spec = produceTOURates(spec,temp);
+	  spec.withPeriodicPayment(0);
+	  
+	  double downReg,upReg;
+	  //Mutate RegRates
+	  if(spec.getRegulationRates().size() != 0) {
+		  downReg = spec.getRegulationRates().get(0).getDownRegulationPayment();
+		  upReg = spec.getRegulationRates().get(0).getUpRegulationPayment();
+		  
+		  downReg = downReg - eReg/10 + 2 * eReg/10 * rnd.nextDouble();
+		  upReg = upReg - eReg + 2 * eReg * rnd.nextDouble();
+		  if(downReg > 0) {
+			  downReg = - downReg;
+		  }
+		  if(upReg <0) {
+			  upReg = - upReg;
+		  }
+		  spec.getRegulationRates().get(0).withDownRegulationPayment(downReg);
+		  spec.getRegulationRates().get(0).withUpRegulationPayment(upReg);
+		  
+	  }else{//create a regRate
+		  downReg = -0.02 - eReg/10 + 2 * eReg/10 * rnd.nextDouble();
+		  upReg = 0.1 - eReg + 2 * eReg * rnd.nextDouble();
+		  if(downReg > 0) {
+			  downReg = - downReg;
+		  }
+		  if(upReg <0) {
+			  upReg = - upReg;
+		  }
+		  RegulationRate reg = new RegulationRate();
+		  
+		  reg.withDownRegulationPayment(downReg);
+		  reg.withUpRegulationPayment(upReg);
+		  
+		  spec.addRate(reg);
+	  }
+	  
+	  printTariff(spec);
+	  System.out.println("After Mutation---");
+	  return spec;
+  }
+  
+  private TariffSpecification mutateConsumptionTariff(TariffSpecification spec) {
+	  Random rnd = new Random();
+	  System.out.println("Before Mutation---");
+	  printTariff(spec);
+	  double ep = Parameters.Ep;
+	  double ebp = Parameters.Ebp;
+	  int ecl = Parameters.Ecl;
+	  double temp ;
+  	  
 	  //Mutating signup payment
 	  temp = spec.getSignupPayment();
 	  if(temp == 0) {
@@ -671,7 +849,27 @@ implements PortfolioManager, Initializable, Activatable
 	  }
 	  tmp = tmp - ecl + rnd.nextInt(2*ecl);
 //	  spec.withMinDuration(tmp);
-	 
+	  
+	  //Mutating avg rate value
+	  double a1 = 0;
+	  temp = 0;
+	  if(spec.getRates() != null) {
+		  for (Rate r : spec.getRates()) {
+			a1 += r.getMinValue();
+		  }
+		  
+		  int n1 = spec.getRates().size();
+		  temp = a1 / n1;
+	  }
+	  
+	  if(temp == 0) {
+		  temp = -0.1;
+	  }
+	  temp = temp * (1 - ep )+  (temp * (1 +  ep ) - temp * (1 - ep ))*rnd.nextDouble();
+	
+	  spec = produceTOURates(spec,temp);
+	  
+	  spec.withPeriodicPayment(0);
 	  printTariff(spec);
 	  System.out.println("After Mutation---");
 	  return spec;

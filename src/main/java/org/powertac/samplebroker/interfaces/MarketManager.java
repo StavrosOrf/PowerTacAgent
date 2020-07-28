@@ -28,4 +28,8 @@ public interface MarketManager
   public double getMeanMarketPrice ();
   
   public int getCompetitors();
+  public double[] getAvgNetusageWd();
+  public double[] getAvgNetusageWe();
+  public double[] getAvgClearingPriceWd();
+  public double[] getAvgClearingPriceWe();
 }

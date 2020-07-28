@@ -115,8 +115,16 @@ implements MarketManager, Initializable, Activatable
   
   private double clearingPricesWe[] = new double[24];
   private double clearingPricesWd[] = new double[24];
-  private int tradesPassedWe = 0;
-  private int tradesPassedWd = 0;
+  private int tradesPassedWe[] = new int[24];
+  private int tradesPassedWd[] = new int[24];
+  
+  private double netUsageWe[] = new double[24];
+  private double netUsageWd[] = new double[24];
+  private int netUsageCounterWe[] = new int[24];
+  private int netUsageCounterWd[] = new int[24];
+  
+  
+
   
   public int numberOfBrokers = -1;
   
@@ -144,6 +152,18 @@ implements MarketManager, Initializable, Activatable
     }
     else {
       randomGen = new Random();
+    }
+    
+    for(int i = 0 ; i<24 ; i++) {
+    	clearingPricesWe[i] = 30;
+    	clearingPricesWd[i] = 30;
+    	tradesPassedWe[i] = 1;
+    	tradesPassedWd[i] = 1;
+    	
+    	netUsageWe[i] = 20000;
+    	netUsageWd[i] = 20000;
+    	netUsageCounterWe[i] = 1;
+    	netUsageCounterWd[i] = 1;
     }
   }
 
@@ -195,14 +215,12 @@ implements MarketManager, Initializable, Activatable
 	  
 	  if(getTimeSlotDay(ts)  <6) {
 		  clearingPricesWd[getTimeSlotHour(ts)] += ct.getExecutionPrice();
-		  tradesPassedWd ++;
+		  tradesPassedWd[getTimeSlotHour(ts)] ++;
 	  }else {
 		  clearingPricesWe[getTimeSlotHour(ts)] += ct.getExecutionPrice();
-		  tradesPassedWe ++;
+		  tradesPassedWe[getTimeSlotHour(ts)] ++;
 
 	  }
-
-	  
 
   }
 
@@ -327,9 +345,11 @@ implements MarketManager, Initializable, Activatable
   @Override
   public synchronized void activate (int timeslotIndex)
   {
+	  updateUsage(portfolioManager.collectUsage(timeslotIndex), timeslotIndex); 
+	  	  
     double neededKWh = 0.0;
     log.debug("Current timeslot is " + timeslotRepo.currentTimeslot().getSerialNumber());
-    System.out.println("=========== \n Current timeslot is " + timeslotRepo.currentTimeslot().getSerialNumber());
+    System.out.println("|---------------------|  Current timeslot is " + timeslotRepo.currentTimeslot().getSerialNumber());
     for (Timeslot timeslot : timeslotRepo.enabledTimeslots()) {
       printAboutTimeslot(timeslot);
 //      System.out.println("usage record lentgh: " + broker.getUsageRecordLength());
@@ -340,6 +360,7 @@ implements MarketManager, Initializable, Activatable
       submitBidMCTS(neededKWh,timeslotRepo.currentTimeslot().getSerialNumber(), timeslot.getSerialNumber());
  
     }
+    System.out.println("|_____________________|");
     
   }
   void printAboutTimeslot(Timeslot t) {
@@ -652,6 +673,66 @@ implements MarketManager, Initializable, Activatable
 	  int hour =  startTime.get(DateTimeFieldType.hourOfDay());
 
 	  return( t+hour ) % 24;
+  }
+  
+  public double getAvgClearedPrice(int timeslot) {
+	  
+	  int day = getTimeSlotDay(timeslot);
+	  int hour = getTimeSlotHour(timeslot);
+	  
+	  if(day < 6) {
+		  return clearingPricesWd[hour]/tradesPassedWd[hour];
+	  }else {
+		  return clearingPricesWe[hour]/tradesPassedWe[hour];
+	  }
+	  
+  }
+  
+  public double[] getAvgClearingPriceWe() {
+	  double t[] = new double[24];
+	  
+	  for (int i = 0; i < t.length; i++) {
+		t[i] = clearingPricesWe[i]/tradesPassedWe[i];
+	}
+ 	  return t;
+  }
+  
+  public double[] getAvgClearingPriceWd() {
+	  double t[] = new double[24];
+	  
+	  for (int i = 0; i < t.length; i++) {
+		t[i] = clearingPricesWd[i]/tradesPassedWd[i];
+	}
+ 	  return t;
+  }
+  
+  private void updateUsage(double usageKWH,int timeslot) {
+	  
+	  if(getTimeSlotDay(timeslot)  <6) {
+		  netUsageWd[getTimeSlotHour(timeslot)] += usageKWH;
+		  netUsageCounterWd[getTimeSlotHour(timeslot)] ++;
+	  }else {
+		  netUsageWe[getTimeSlotHour(timeslot)] += usageKWH;
+		  netUsageCounterWe[getTimeSlotHour(timeslot)] ++;
+	  }
+  }
+  
+  public double[] getAvgNetusageWe() {
+	  double t[] = new double[24];
+	  
+	  for (int i = 0; i < t.length; i++) {
+		t[i] = netUsageWe[i]/netUsageCounterWe[i];
+	}
+ 	  return t;
+  }
+  
+  public double[] getAvgNetusageWd() {
+	  double t[] = new double[24];
+	  
+	  for (int i = 0; i < t.length; i++) {
+		t[i] = netUsageWd[i]/netUsageCounterWd[i];
+	}
+ 	  return t;
   }
   
 }

@@ -7,7 +7,7 @@ public class Parameters {
 	  public static String MyName = "mc0";
 	
 	  //retail module Parameters	
-	  public static int reevaluation = 25;
+	  public static int reevaluation = 40;
 	  
 	  //Database related parameters
 	  public static int NUM_OF_POPULATION = 50;
@@ -18,7 +18,8 @@ public class Parameters {
 	  public static double Ebp = 10;
 	  public static double Ep = 0.15;
 	  public static int timeslotMS = 5000;
-	  public static int Ecl = timeslotMS* (4* reevaluation/5);
+	  public static int Ecl = timeslotMS* (4* reevaluation/5)*1000000;
+	  public static double Ereg = 0.05;
 	
       //wholesale module Parameters
 	  public static int MAX_ITERATIONS = 1000;

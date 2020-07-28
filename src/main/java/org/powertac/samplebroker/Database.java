@@ -349,16 +349,24 @@ public class Database {
 	public void resetGameLevel(int level) {
 		try {
 			res = stmt.executeQuery("select fitnessValue,id from tariffs where level = " + level);
+			int id;
 			
+			ArrayList<Integer> temp = new ArrayList<Integer>();
 			while(res.next()) {
-				int id =res.getInt(2);
+				id =res.getInt(2);
+				
+				temp.add(id);
+							
+			}
+			while(!temp.isEmpty()) {
+				id = temp.get(0);
+				temp.remove(0);
 				
 				stmt.executeUpdate("DELETE from tariffs where id = "+id);
 				
 				stmt.executeUpdate("DELETE from rate where tarrifId = " +id);
 				
 				stmt.executeUpdate("DELETE from RegRate where tarrifId = " +id);
-				
 			}
 
 
