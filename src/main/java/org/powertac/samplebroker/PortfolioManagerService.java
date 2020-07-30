@@ -489,11 +489,9 @@ implements PortfolioManager, Initializable, Activatable
         				tariffDB.addTariff(spec.getBroker().getUsername(),spec.getPowerType(),(int)spec.getMinDuration(),
             					spec.getEarlyWithdrawPayment(),spec.getSignupPayment(), spec.getPeriodicPayment(),0, tariffCharges.get(spec), 
             					i, spec.getRates(),spec.getRegulationRates(),timeslotRepo.currentTimeslot().getSerialNumber()
-            					,marketManager.getCompetitors(),isInitial);
-						
+            					,marketManager.getCompetitors(),isInitial);						
 					}
     			}
-
     			
     			t = tariffDB.getBestTariff(2, spec.getPowerType(),spec.getBroker(),1,false,marketManager.getCompetitors());
     			
@@ -525,6 +523,10 @@ implements PortfolioManager, Initializable, Activatable
         	        tariffRepo.addSpecification(tempTariff);
         	        tariffCharges.put(tempTariff,0d);
         	        brokerContext.sendMessage(tempTariff);
+        	        // revoke the old one
+        	        TariffRevoke revoke = new TariffRevoke(brokerContext.getBroker(), spec);
+        	        brokerContext.sendMessage(revoke);
+        	        
     			} else if(spec.getPowerType().isProduction()) {
     				tempTariff = crossoverTariffs(t);
     				tempTariff = mutateProductionTariff(tempTariff);   				
@@ -534,7 +536,26 @@ implements PortfolioManager, Initializable, Activatable
         	        tariffRepo.addSpecification(tempTariff);
         	        tariffCharges.put(tempTariff,0d);
         	        brokerContext.sendMessage(tempTariff);
+        	        // revoke the old one
+        	        TariffRevoke revoke = new TariffRevoke(brokerContext.getBroker(), spec);
+        	        brokerContext.sendMessage(revoke);
+        	        
+    			}else if(spec.getPowerType() == PowerType.INTERRUPTIBLE_CONSUMPTION) {
+    				tempTariff = crossoverTariffs(t);
+    				tempTariff = mutateInterruptibleConsTariff(tempTariff);
+    				tariffCharges.remove(spec);
+    				//TODO DELETE from db selected tariffs
+    				tempTariff.addSupersedes(spec.getId());
+    				tariffRepo.addSpecification(tempTariff);
+    				tariffCharges.put(tempTariff,0d);
+    				brokerContext.sendMessage(tempTariff);
+    				
+        	        // revoke the old one
+        	        TariffRevoke revoke = new TariffRevoke(brokerContext.getBroker(), spec);
+        	        brokerContext.sendMessage(revoke);
     			}
+    			
+    			
     		}
 //    		improveTariffs();
     		System.out.println("Other Tariffs-----------");
@@ -556,7 +577,7 @@ implements PortfolioManager, Initializable, Activatable
   }
   
   //Function producing time of use rates for the given tariff
-  private TariffSpecification produceTOURates(TariffSpecification t, double avg){
+  private TariffSpecification produceTOURates(TariffSpecification t, double avg,double maxCurtailment){
 	  
 	  TariffSpecification spec = new TariffSpecification(t.getBroker(),t.getPowerType());
 	  spec.withEarlyWithdrawPayment(t.getEarlyWithdrawPayment());
@@ -596,6 +617,7 @@ implements PortfolioManager, Initializable, Activatable
 			  r.withDailyEnd(0);
 		  
 		  r.withMinValue(avg*wWe[i]);
+		  r.withMaxCurtailment(maxCurtailment);
 //		  System.out.println(avg*wWe[i]);
 		  spec.addRate(r);
 	  }
@@ -611,6 +633,7 @@ implements PortfolioManager, Initializable, Activatable
 			  r.withDailyEnd(0);
 		  
 		  r.withMinValue(avg*wWd[i]);
+		  r.withMaxCurtailment(maxCurtailment);
 //		  System.out.println(avg*wWd[i]);
 		  spec.addRate(r);
 	  }
@@ -747,15 +770,15 @@ implements PortfolioManager, Initializable, Activatable
 	  spec.withEarlyWithdrawPayment(-2*temp);
 	  
 	  //Mutating contract length
-	  int tmp = (int)spec.getMinDuration();
-	  if(tmp < ecl/2) {
-		  tmp = rnd.nextInt(ecl)+1;
-	  }
-	  if(ecl >= tmp) {
-		  ecl = tmp/2;
-	  }
-	  tmp = tmp - ecl + rnd.nextInt(2*ecl);
-	  spec.withMinDuration(tmp);
+//	  int tmp = (int)spec.getMinDuration();
+//	  if(tmp < ecl/2) {
+//		  tmp = rnd.nextInt(ecl)+1;
+//	  }
+//	  if(ecl >= tmp) {
+//		  ecl = tmp/2;
+//	  }
+//	  tmp = tmp - ecl + rnd.nextInt(2*ecl);
+	  spec.withMinDuration(ecl);
 	  
 	  double a1 = 0;
 	  temp = 0;
@@ -772,7 +795,7 @@ implements PortfolioManager, Initializable, Activatable
 	  }
 	  temp = temp * (1 - ep )+  (temp * (1 +  ep ) - temp * (1 - ep ))*rnd.nextDouble();
 	
-	  spec = produceTOURates(spec,temp);
+	  spec = produceTOURates(spec,temp,0);
 	  spec.withPeriodicPayment(0);
 	  
 	  double downReg,upReg;
@@ -867,7 +890,73 @@ implements PortfolioManager, Initializable, Activatable
 	  }
 	  temp = temp * (1 - ep )+  (temp * (1 +  ep ) - temp * (1 - ep ))*rnd.nextDouble();
 	
-	  spec = produceTOURates(spec,temp);
+	  spec = produceTOURates(spec,temp,0);
+	  
+	  spec.withPeriodicPayment(0);
+	  printTariff(spec);
+	  System.out.println("After Mutation---");
+	  return spec;
+  }
+  
+
+  private TariffSpecification mutateInterruptibleConsTariff(TariffSpecification spec) {
+	  Random rnd = new Random();
+	  System.out.println("Before Mutation---");
+	  printTariff(spec);
+	  double ep = Parameters.Ep;
+	  double ebp = Parameters.Ebp;
+	  int ecl = Parameters.Ecl;
+	  double temp ;
+  	  
+	  //Mutating signup payment
+	  temp = spec.getSignupPayment();
+	  if(temp == 0) {
+		  temp = -ebp;
+	  }
+	  temp = temp + ebp +  (temp -  ebp  - (temp  + ebp ))*rnd.nextDouble();
+//	  spec.withSignupPayment(temp);
+	  
+	  //Mutating Early withdrawal payment
+	  temp = spec.getEarlyWithdrawPayment();
+	  if(temp == 0) {
+		  temp = -ebp;
+	  }
+	  temp = temp + ebp +  (temp -  ebp  - (temp  + ebp ))*rnd.nextDouble();
+//	  spec.withEarlyWithdrawPayment(temp);
+	  
+	  //Mutating contract length
+	  int tmp = (int)spec.getMinDuration();
+	  if(tmp == 0) {
+		  tmp = rnd.nextInt(ecl);
+	  }
+	  if(ecl >= tmp) {
+		  ecl = tmp/2;
+	  }
+	  tmp = tmp - ecl + rnd.nextInt(2*ecl);
+//	  spec.withMinDuration(tmp);
+	  
+	  //Mutating avg rate value and maxCurtailment
+	  double a1 = 0;
+	  double maxC = 0;
+	  temp = 0;
+	  if(spec.getRates() != null) { // TODO might hit error with != null
+		  for (Rate r : spec.getRates()) {
+			a1 += r.getMinValue();
+			maxC = r.getMaxCurtailment();
+		  }
+		  
+		  int n1 = spec.getRates().size();
+		  temp = a1 / n1;
+	  }
+	  
+	  if(temp == 0) {
+		  temp = -0.1;
+		  maxC = 0.4;
+	  }
+	  temp = temp * (1 - ep )+  (temp * (1 +  ep ) - temp * (1 - ep ))*rnd.nextDouble();
+	  maxC = maxC * (1 - ep )+  (maxC * (1 +  ep ) - maxC * (1 - ep ))*rnd.nextDouble();
+	  	  
+	  spec = produceTOURates(spec,temp,maxC);
 	  
 	  spec.withPeriodicPayment(0);
 	  printTariff(spec);
@@ -900,9 +989,101 @@ implements PortfolioManager, Initializable, Activatable
       t.getSignupPayment(),t.getEarlyWithdrawPayment(),t.getMinDuration()/5000,n1,a1,n2);
   }
   
+  private void createInitialTariffs() {
+	  ArrayList<TariffSpecification> t;
+	  TariffSpecification tempTariff;
+	  System.out.println("Creating Initial Tariffs....");
+	  for (PowerType pt : customerProfiles.keySet()) {
+		  System.out.println("lvl 2");
+		  	//check level 1 of db for initial tariffs
+			if(tariffDB.getNumberOfRecords(pt,brokerContext.getBroker().getUsername(),1,true,marketManager.getCompetitors()) < 2) {
+				System.out.println("lvl 1: " + tariffDB.getNumberOfRecords(pt,brokerContext.getBroker().getUsername(),1,true,marketManager.getCompetitors()) );
+				System.out.println(pt.toString());
+				if(tariffDB.getNumberOfRecords(pt,brokerContext.getBroker().getUsername(),0,true,marketManager.getCompetitors()) < 2) {
+					//call the default createInitialTariffs
+					System.out.println("lvl 0" + tariffDB.getNumberOfRecords(pt,brokerContext.getBroker().getUsername(),0,true,marketManager.getCompetitors()));
+					System.out.println(pt.toString());
+					tempTariff = createInitialTariffSampleBroker(pt);
+				}else{
+					t = tariffDB.getBestTariff(2, pt,brokerContext.getBroker(),0,true,marketManager.getCompetitors());
+					tempTariff = crossoverTariffs(t);
+				}
+			}else{
+					t = tariffDB.getBestTariff(2, pt,brokerContext.getBroker(),1,true,marketManager.getCompetitors());
+					tempTariff = crossoverTariffs(t);
+			}
+			
+				   			
+			if( pt == PowerType.CONSUMPTION) {
+				tempTariff = mutateConsumptionTariff(tempTariff);   				
+    			// DELETE from db selected tariffs
+    			//commit the new tariff
+			    customerSubscriptions.put(tempTariff, new LinkedHashMap<>());
+    	        tariffRepo.addSpecification(tempTariff);
+    	        tariffCharges.put(tempTariff,0d);
+    	        brokerContext.sendMessage(tempTariff); 	        
+			}else if(pt.isStorage()){
+				tempTariff = mutateStorageTariff(tempTariff);   				
+				// DELETE from db selected tariffs
+				customerSubscriptions.put(tempTariff, new LinkedHashMap<>());
+				tariffRepo.addSpecification(tempTariff);
+				tariffCharges.put(tempTariff,0d);
+  	        	brokerContext.sendMessage(tempTariff);
+			}else if(pt.isProduction()) {
+				tempTariff = mutateProductionTariff(tempTariff);   				
+				// DELETE from db selected tariffs
+				customerSubscriptions.put(tempTariff, new LinkedHashMap<>());
+				tariffRepo.addSpecification(tempTariff);
+				tariffCharges.put(tempTariff,0d);
+				brokerContext.sendMessage(tempTariff);
+			}else if(pt == PowerType.INTERRUPTIBLE_CONSUMPTION) {
+				tempTariff = mutateInterruptibleConsTariff(tempTariff);   				
+				// DELETE from db selected tariffs
+				customerSubscriptions.put(tempTariff, new LinkedHashMap<>());
+				tariffRepo.addSpecification(tempTariff);
+				tariffCharges.put(tempTariff,0d);
+				brokerContext.sendMessage(tempTariff);
+			}else {
+				System.exit(1);
+			}
+	  }
+	  
+  }
+  private TariffSpecification createInitialTariffSampleBroker(PowerType pt) {
+	  double marketPrice = marketManager.getMeanMarketPrice() / 1000.0;
+	  double rateValue = ((marketPrice + fixedPerKwh) * (1.0 + defaultMargin));
+      double periodicValue = defaultPeriodicPayment;
+      if (pt.isProduction()) {
+        rateValue = -2.0 * marketPrice;
+        periodicValue /= 2.0;
+      }
+      if (pt.isStorage()) {
+        rateValue *= 0.9; // Magic number
+        periodicValue = 0.0;
+      }
+      if (pt.isInterruptible()) {
+        rateValue *= 0.7; // Magic number!! price break for interruptible
+      }
+      TariffSpecification spec = new TariffSpecification(brokerContext.getBroker(), pt).withPeriodicPayment(periodicValue);
+      Rate rate = new Rate().withValue(rateValue);
+      if (pt.isInterruptible() && !pt.isStorage()) {
+        // set max curtailment
+        rate.withMaxCurtailment(0.4);
+      }
+      if (pt.isStorage()) {
+        // add a RegulationRate
+        RegulationRate rr = new RegulationRate();
+        rr.withUpRegulationPayment(-rateValue * 1.2)
+            .withDownRegulationPayment(rateValue * 0.2); // magic numbers
+        spec.addRate(rr);
+      }
+      spec.addRate(rate);
+	  
+	   return spec;
+  }
   // Creates initial tariffs for the main power types. These are simple
   // fixed-rate two-part tariffs that give the broker a fixed margin.
-  private void createInitialTariffs ()
+  private void createInitialTariffsSampleBroker ()
   {
     // remember that market prices are per mwh, but tariffs are by kwh
     double marketPrice = marketManager.getMeanMarketPrice() / 1000.0;
