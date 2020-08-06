@@ -15,6 +15,8 @@
  */
 package org.powertac.samplebroker.interfaces;
 
+import org.powertac.common.Competition;
+
 /**
  * Encapsulates broker market interactions.
  * @author John Collins
@@ -32,4 +34,13 @@ public interface MarketManager
   public double[] getAvgNetusageWe();
   public double[] getAvgClearingPriceWd();
   public double[] getAvgClearingPriceWe();
+  public double getDistributionCosts();
+  public void setDistributionCosts(double v);
+  public double getBalancingCosts();
+  public void setBalancingCosts(double v);
+  public double[] getWholesaleCosts();
+  public void setWholesaleCosts(double v);
+  public Competition getComp();
+  
+  
 }

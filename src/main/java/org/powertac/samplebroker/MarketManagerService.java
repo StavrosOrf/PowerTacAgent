@@ -15,17 +15,12 @@
  */
 package org.powertac.samplebroker;
 
-import java.awt.List;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Random;
 
 import org.apache.logging.log4j.Logger;
-import org.joda.time.Chronology;
-import org.joda.time.DateTimeField;
 import org.joda.time.DateTimeFieldType;
-import org.joda.time.DurationFieldType;
 import org.joda.time.Instant;
 import org.apache.logging.log4j.LogManager;
 import org.powertac.common.BalancingTransaction;
@@ -53,11 +48,9 @@ import org.powertac.samplebroker.interfaces.PortfolioManager;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import com.fasterxml.jackson.databind.deser.impl.CreatorCandidate.Param;
-
 /**
  * Handles market interactions on behalf of the broker.
- * @author John Collins
+ * @author John Collins, Stavros Orfanoudakis
  */
 @Service
 public class MarketManagerService 
@@ -122,9 +115,11 @@ implements MarketManager, Initializable, Activatable
   private double netUsageWd[] = new double[24];
   private int netUsageCounterWe[] = new int[24];
   private int netUsageCounterWd[] = new int[24];
+  private double totalDistributionCosts = 0;
+  private double totalBalancingCosts = 0;
+  private double totalWholesaleCosts[] = new double[2];
   
-  
-
+  public Competition comp;
   
   public int numberOfBrokers = -1;
   
@@ -186,11 +181,13 @@ implements MarketManager, Initializable, Activatable
   public synchronized void handleMessage (Competition comp)
   {
     minMWh = Math.max(minMWh, comp.getMinimumOrderQuantity());
-    System.out.println("Competitors");
+    System.out.println("Competition name: "+ comp.getName());
+    System.out.print("Competitors: ");
     for (String s : comp.getBrokers()) {
-		System.out.println(s);
+		System.out.print(s);
 	}
-    
+    System.out.println("");
+    this.comp = comp;
     startTime = comp.getSimulationBaseTime();
     
     numberOfBrokers = comp.getBrokers().size() -1;
@@ -201,7 +198,8 @@ implements MarketManager, Initializable, Activatable
    */
   public synchronized void handleMessage (BalancingTransaction tx)
   {
-    log.info("Balancing tx: " + tx.getCharge());
+	  totalBalancingCosts += tx.getCharge();
+	  log.info("Balancing tx: " + tx.getCharge());
   }
 
   /**
@@ -210,7 +208,6 @@ implements MarketManager, Initializable, Activatable
    */
   public synchronized void handleMessage (ClearedTrade ct)
   {
-	  //TODO
 	  int ts = ct.getTimeslotIndex();
 	  
 	  if(getTimeSlotDay(ts)  <6) {
@@ -219,9 +216,7 @@ implements MarketManager, Initializable, Activatable
 	  }else {
 		  clearingPricesWe[getTimeSlotHour(ts)] += ct.getExecutionPrice();
 		  tradesPassedWe[getTimeSlotHour(ts)] ++;
-
 	  }
-
   }
 
   /**
@@ -229,7 +224,8 @@ implements MarketManager, Initializable, Activatable
    */
   public synchronized void handleMessage (DistributionTransaction dt)
   {
-    log.info("Distribution tx: " + dt.getCharge());
+	  totalDistributionCosts += dt.getCharge();
+	  log.info("Distribution tx: " + dt.getCharge());
   }
 
   /**
@@ -238,10 +234,12 @@ implements MarketManager, Initializable, Activatable
    */
   public synchronized void handleMessage (CapacityTransaction dt)
   {
-	System.out.println("=================");
-	System.out.println("ts: " + dt.getPeakTimeslot() + "  " + dt.getBroker().getUsername()
-			+ "  " + dt.getKWh() + "  " + dt.getThreshold() + "  " + dt.getCharge() );
-	System.out.println("=================");
+	System.out.println("=====================================================================================");
+//	System.out.println("ts: " + dt.getPeakTimeslot() + "  " + dt.getBroker().getUsername()
+//			+ "  " + dt.getKWh() + "  " + dt.getThreshold() + "  " + dt.getCharge() );
+	System.out.printf("CapacityTransaction| peak ts:%5d Energy: %8.2f KWh ThreshHold: %8.2f  Costs: %10.2f €\n", 
+						dt.getPeakTimeslot(),dt.getKWh(),dt.getThreshold(), dt.getCharge());
+	System.out.println("=====================================================================================");
     log.info("Capacity tx: " + dt.getCharge());
   }
 
@@ -293,12 +291,16 @@ implements MarketManager, Initializable, Activatable
    */
   public synchronized void handleMessage (MarketTransaction tx)
   {
-    // reset price escalation when a trade fully clears.
-    Order lastTry = lastOrder.get(tx.getTimeslotIndex());
-    if (lastTry == null) // should not happen
-      log.error("order corresponding to market tx " + tx + " is null");
-    else if (tx.getMWh() == lastTry.getMWh()) // fully cleared
-      lastOrder.put(tx.getTimeslotIndex(), null);
+	  if(tx.getPrice() > 0)
+		  totalWholesaleCosts[1] += tx.getPrice();
+	  else
+		  totalWholesaleCosts[0] += tx.getPrice();
+	  // reset price escalation when a trade fully clears.
+	  Order lastTry = lastOrder.get(tx.getTimeslotIndex());
+	  if (lastTry == null) // should not happen
+		  log.error("order corresponding to market tx " + tx + " is null");
+	  else if (tx.getMWh() == lastTry.getMWh()) // fully cleared
+		  lastOrder.put(tx.getTimeslotIndex(), null);
   }
   
   /**
@@ -348,8 +350,8 @@ implements MarketManager, Initializable, Activatable
 	  updateUsage(portfolioManager.collectUsage(timeslotIndex), timeslotIndex); 
 	  	  
     double neededKWh = 0.0;
-    log.debug("Current timeslot is " + timeslotRepo.currentTimeslot().getSerialNumber());
-    System.out.println("|---------------------|  Current timeslot is " + timeslotRepo.currentTimeslot().getSerialNumber());
+    log.debug(" Current timeslot is " + timeslotRepo.currentTimeslot().getSerialNumber());
+    System.out.println("\n|---------------------|  Current timeslot is " + timeslotRepo.currentTimeslot().getSerialNumber());
     for (Timeslot timeslot : timeslotRepo.enabledTimeslots()) {
       printAboutTimeslot(timeslot);
 //      System.out.println("usage record lentgh: " + broker.getUsageRecordLength());
@@ -360,7 +362,7 @@ implements MarketManager, Initializable, Activatable
       submitBidMCTS(neededKWh,timeslotRepo.currentTimeslot().getSerialNumber(), timeslot.getSerialNumber());
  
     }
-    System.out.println("|_____________________|");
+//    System.out.println("|_____________________|");
     
   }
   void printAboutTimeslot(Timeslot t) {
@@ -420,7 +422,7 @@ implements MarketManager, Initializable, Activatable
     Node curNode;
     ArrayList<Node> visitedNodes;
     double Csim; // Total simulated cost of auctions done
-    double Cbal = 0; // Estimated Balancing cost
+//    double Cbal = 0; // Estimated Balancing cost
     double CbalUnitPrice = - 2* Math.abs(Parameters.buyLimitPriceMin)/2; // May need to reevaluate this!!!!!!!!!!!!!!!!TODO  
     double CavgUnit = 0; // Average Unit Cost 
     
@@ -578,7 +580,8 @@ implements MarketManager, Initializable, Activatable
     broker.sendMessage(order);
   }
   
-  private void printTree(Node n) {
+  @SuppressWarnings("unused")
+private void printTree(Node n) {
 	  if(n == null || n.children.isEmpty())
 		  return;
 	  if(n.parent == null) {
@@ -733,6 +736,35 @@ implements MarketManager, Initializable, Activatable
 		t[i] = netUsageWd[i]/netUsageCounterWd[i];
 	}
  	  return t;
+  }
+  
+  public double getDistributionCosts() {
+	return totalDistributionCosts;  
+  }
+  public void setDistributionCosts(double v) {
+	  totalDistributionCosts = v;
+  }
+  public double getBalancingCosts() {
+	  return totalBalancingCosts;
+  }
+  public void setBalancingCosts(double v) {
+	  totalBalancingCosts = v;
+  }
+  
+  public double[] getWholesaleCosts() {
+	  return totalWholesaleCosts;
+  }
+  public void setWholesaleCosts(double v) {
+	  totalWholesaleCosts[0] = v;
+	  totalWholesaleCosts[1] = v;
+  }
+
+  public Competition getComp() {
+	  return comp;
+  }
+
+  public void setComp(Competition comp) {
+	  this.comp = comp;
   }
   
 }

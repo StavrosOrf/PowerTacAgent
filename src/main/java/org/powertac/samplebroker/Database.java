@@ -1,3 +1,18 @@
+/*
+ * Copyright (c) 2012-2014 by the original author
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.powertac.samplebroker;
 
 import java.sql.Connection;
@@ -9,6 +24,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 
 import org.apache.derby.jdbc.EmbeddedDriver;
 import org.powertac.common.Broker;
@@ -17,6 +33,12 @@ import org.powertac.common.RegulationRate;
 import org.powertac.common.TariffSpecification;
 import org.powertac.common.enumerations.PowerType;
 
+/**
+ * This class manages the database instant and contains all the
+ * useful functions
+ * 
+ * @author Stavros Orfanoudakis
+ */
 
 public class Database {
     Connection conn = null;
@@ -323,15 +345,25 @@ public class Database {
 	   }
 	 
 	public void deleteWorstTariff(PowerType pt,String Broker,int level ,boolean isInitial,int numberOfBrokers) {
-		
+		int id = 0,counter = 0;
 		try {
 			rs = stmt.executeQuery("select fitnessValue,id from tariffs where powerType = '" +pt.toString() 
 			+"' and broker = '"+ Broker +"' and level = " + level + " and isInitial = " + isInitial 
 			+ " and brokers = " + numberOfBrokers + "  order by fitnessValue asc ");
-			rs.next();
-//			double worstFittnessValue = rs.getDouble(1);
-			int id =rs.getInt(2);
-//			System.out.println(worstFittnessValue+ "  , "+ id);
+			
+			if(Broker.equals(Parameters.MyName)) {
+				rs.next();
+				id =rs.getInt(2);
+			}else {
+				Random r = new Random();
+				int x = r.nextInt(Parameters.NUM_OF_POPULATION-2);
+				
+				while(rs.next() && counter <= x) {
+					id =rs.getInt(2);
+					counter ++;
+				}
+			}
+
 			
 			stmt.executeUpdate("DELETE from tariffs where powerType = '" +pt.toString() 
 			+"' and id = "+id);

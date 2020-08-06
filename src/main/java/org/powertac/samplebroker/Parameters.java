@@ -1,10 +1,32 @@
+/*
+ * Copyright (c) 2012-2014 by the original author
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.powertac.samplebroker;
 
+/**
+ * This class holds all essentials parameters of the broker
+ * 
+ * @author Stavros Orfanoudakis
+ */
 //mvn -Pcli -Dexec.args="--sim --boot-data boot1.xml --brokers st1,mc0"
 
 public class Parameters {
 	
 	  public static String MyName = "mc0";
+	  
+
 	
 	  //retail module Parameters	
 	  public static int reevaluationCons = 30;
@@ -12,10 +34,14 @@ public class Parameters {
 	  public static int reevaluationProduction = 3*reevaluationCons;
 	  public static int reevaluationInterruptible = 2 *reevaluationCons;
 	  
+	  public static int initialTariffBound = 365;
+	  public static int LATE_GAME = 1400;
+	  public static double LATE_GAME_ADDEED_PRICE = -0.8;
+	  
 	  //Database related parameters
 	  public static int NUM_OF_POPULATION = 50;
-	  public static double GroundLevelDecayFactor = 0.01;
-	  public static double TourLevelDecayFactor = 0.02;
+	  public static double GroundLevelDecayFactor = 0.02;
+	  public static double TourLevelDecayFactor = 0.04;
 	  
 	  //Mutation Constants
 	  public static double Ebp = 10;
