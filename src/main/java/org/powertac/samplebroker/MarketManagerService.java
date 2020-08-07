@@ -116,8 +116,11 @@ implements MarketManager, Initializable, Activatable
   private int netUsageCounterWe[] = new int[24];
   private int netUsageCounterWd[] = new int[24];
   private double totalDistributionCosts = 0;
+  private double totalDistributionEnergy = 0;
   private double totalBalancingCosts = 0;
+  private double totalBalancingEnergy = 0;
   private double totalWholesaleCosts[] = new double[2];
+  private double totalWholesaleEnergy[] = new double[2];
   
   public Competition comp;
   
@@ -198,6 +201,7 @@ implements MarketManager, Initializable, Activatable
    */
   public synchronized void handleMessage (BalancingTransaction tx)
   {
+	  totalBalancingEnergy += tx.getKWh();
 	  totalBalancingCosts += tx.getCharge();
 	  log.info("Balancing tx: " + tx.getCharge());
   }
@@ -224,6 +228,7 @@ implements MarketManager, Initializable, Activatable
    */
   public synchronized void handleMessage (DistributionTransaction dt)
   {
+	  totalDistributionEnergy += dt.getKWh();
 	  totalDistributionCosts += dt.getCharge();
 	  log.info("Distribution tx: " + dt.getCharge());
   }
@@ -291,10 +296,14 @@ implements MarketManager, Initializable, Activatable
    */
   public synchronized void handleMessage (MarketTransaction tx)
   {
-	  if(tx.getPrice() > 0)
+	  if(tx.getPrice() > 0) {
 		  totalWholesaleCosts[1] += tx.getPrice();
-	  else
+		  totalWholesaleEnergy[1] += tx.getMWh()*1000;
+	  }else{
 		  totalWholesaleCosts[0] += tx.getPrice();
+		  totalWholesaleEnergy[0] += tx.getMWh()*1000;
+	  }
+		  
 	  // reset price escalation when a trade fully clears.
 	  Order lastTry = lastOrder.get(tx.getTimeslotIndex());
 	  if (lastTry == null) // should not happen
@@ -417,6 +426,15 @@ implements MarketManager, Initializable, Activatable
     //==========================================================================================	
     
     //TODO check if needed is negative or positive
+    if(neededMWh < 0) {
+        log.info("new order for " + neededMWh + " at " + limitPrice + " in timeslot " + timeslotBidding);
+        Order order = new Order(broker.getBroker(), timeslotBidding, neededMWh, limitPrice);
+        
+        lastOrder.put(timeslotBidding, order);
+        broker.sendMessage(order);
+        return;
+    }
+    
     double neededMWHTemp ;
     int timeslotBiddingTemp;
     Node curNode;
@@ -758,13 +776,38 @@ private void printTree(Node n) {
 	  totalWholesaleCosts[0] = v;
 	  totalWholesaleCosts[1] = v;
   }
+  
+  public double[] getWholesaleEnergy() {
+	  return totalWholesaleEnergy;
+  }
+  public void setWholesaleEnergy(double v) {
+	  totalWholesaleEnergy[0] = v;
+	  totalWholesaleEnergy[1] = v;
+  }
 
   public Competition getComp() {
 	  return comp;
   }
 
+  public double getTotalDistributionEnergy() {
+	return totalDistributionEnergy;
+  }
+
+  public void setTotalDistributionEnergy(double totalDistributionEnergy) {
+	this.totalDistributionEnergy = totalDistributionEnergy;
+  }
+
   public void setComp(Competition comp) {
 	  this.comp = comp;
   }
+
+public double getTotalBalancingEnergy() {
+	return totalBalancingEnergy;
+}
+
+public void setTotalBalancingEnergy(double totalBalancingEnergy) {
+	this.totalBalancingEnergy = totalBalancingEnergy;
+}
+  
   
 }

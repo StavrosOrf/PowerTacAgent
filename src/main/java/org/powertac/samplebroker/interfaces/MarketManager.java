@@ -40,7 +40,14 @@ public interface MarketManager
   public void setBalancingCosts(double v);
   public double[] getWholesaleCosts();
   public void setWholesaleCosts(double v);
+  public double[] getWholesaleEnergy();
+  public void setWholesaleEnergy(double v);
+  public double getTotalDistributionEnergy();
+  public void setTotalDistributionEnergy(double totalDistributionEnergy);
+  public double getTotalBalancingEnergy();
+  public void setTotalBalancingEnergy(double totalBalancingEnergy); 
   public Competition getComp();
+  
   
   
 }

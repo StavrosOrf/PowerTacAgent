@@ -134,6 +134,7 @@ implements PortfolioManager, Initializable, Activatable
   private boolean enableStorage = true;
   private boolean enableProduction = true;
   private boolean enableInterruptible = true;
+  private boolean enableConsumption = true;
   
   private boolean isLateGame = false;
   
@@ -556,11 +557,8 @@ implements PortfolioManager, Initializable, Activatable
     		
     		
     		System.out.println("Its time");
-    		System.out.printf("Balancing costs BETA	\t: %.2f €  Energy: %.2f \n", balancingCosts,balancingEnergy);
-    		System.out.printf("Balancing costs MM	\t: %.2f € \n", marketManager.getBalancingCosts());
-    		System.out.printf("Distribution costs	\t: %.2f € \n", marketManager.getDistributionCosts());
-    		System.out.printf("Wholesale market buying \t: %.2f € \n", marketManager.getWholesaleCosts()[0]);
-    		System.out.printf("Wholesale market selling\t: %.2f € \n\n", marketManager.getWholesaleCosts()[1]);
+    		printBalanceStats();
+
     		tariffDB.decayFittnessValue(0);
     		tariffDB.decayFittnessValue(1);
     		
@@ -576,7 +574,7 @@ implements PortfolioManager, Initializable, Activatable
     			}
     			// Print info about customers
     			if(tariffCharges.get(spec) != 0) {
-    				System.out.printf("-- Profit: %8.2f ",tariffCharges.get(spec));
+    				System.out.printf("-- Profit: % 8.2f ",tariffCharges.get(spec));
     				
     			    switch(spec.getPowerType().toString()) {
     		    	case "CONSUMPTION":
@@ -640,7 +638,7 @@ implements PortfolioManager, Initializable, Activatable
     				continue;
     			
     			
-    			if(spec.getPowerType() == PowerType.CONSUMPTION) {
+    			if(spec.getPowerType() == PowerType.CONSUMPTION  && enableConsumption) {
     				tempTariff = crossoverTariffs(t);
     				tempTariff = mutateConsumptionTariff(tempTariff);   				
         			tariffCharges.remove(spec);
@@ -711,6 +709,9 @@ implements PortfolioManager, Initializable, Activatable
     				printTariff(spec);      			
         		}
     		}
+    		marketManager.setTotalBalancingEnergy(0);
+    		marketManager.setTotalDistributionEnergy(0);
+    		marketManager.setWholesaleEnergy(0);
     		marketManager.setBalancingCosts(0);
     		marketManager.setDistributionCosts(0);
     		marketManager.setWholesaleCosts(0);
@@ -905,6 +906,10 @@ implements PortfolioManager, Initializable, Activatable
 		  temp = ebp;
 	  }
 	  temp = temp + ebp +  (temp -  ebp  - (temp  + ebp ))*rnd.nextDouble();
+	  if(temp < 0) {
+		  temp = - temp;
+	  }
+	  
 	  spec.withSignupPayment(temp);
 	  
 	  //Mutating Early withdrawal payment
@@ -965,6 +970,9 @@ implements PortfolioManager, Initializable, Activatable
 		  temp = ebp;
 	  }
 	  temp = temp + ebp +  (temp -  ebp  - (temp  + ebp ))*rnd.nextDouble();
+	  if(temp < 0) {
+		  temp = - temp;
+	  }
 	  spec.withSignupPayment(temp);
 	  
 	  //Mutating Early withdrawal payment
@@ -1178,9 +1186,57 @@ implements PortfolioManager, Initializable, Activatable
 		  n2 = t.getRegulationRates().size();
 	  }
 	  
-      System.out.printf("T_id:%d %30s, %15s| Periodic: %5.4f Signup:%5.2f Ewp:%5.2f ContractL:%10d ts | Rates:%3d Avg:%3.4f  RegRates:%3d \n",
+      System.out.printf(" \tT_id:%d %30s, %15s| Periodic: % 5.4f Signup:% 5.2f Ewp:% 5.2f ContractL:%10d ts | Rates:%3d Avg:% 3.4f  RegRates:%3d \t",
       t.getId(), t.getPowerType().toString(),t.getBroker().getUsername(),t.getPeriodicPayment(),
       t.getSignupPayment(),t.getEarlyWithdrawPayment(),t.getMinDuration()/5000,n1,a1,n2);
+      
+      if(t.getPowerType() == PowerType.CONSUMPTION) {
+    	  double we[] = new double[24];
+    	  double wd[] = new double[24];
+    	  if(t.getRates().size() != 48) {
+    		  System.out.println(" ");
+    		  return;
+    	  }
+    		  
+    	  
+    	  for(Rate r : t.getRates()) {
+    		  if(r.getWeeklyBegin()<6) {
+    			  we[r.getDailyBegin()] = r.getMinValue();
+    		  }else {
+    			  wd[r.getDailyBegin()] = r.getMinValue();
+    		  }
+    	  }
+    	  for(int i=0 ;i<24;i++) {
+    		  System.out.printf(" % 1.3f|",we[i]);
+    	  }
+    	  for(int i=0 ;i<24;i++) {
+    		  System.out.printf(" % 1.3f|",wd[i]);
+    	  }
+      }
+      System.out.println(" ");
+      if(t.getSignupPayment() < 0) {
+    	  System.out.println("ERROR");
+    	  System.out.println("ERROR");
+      }
+  }
+  
+  private void printBalanceStats() {
+		double t1,t2;
+		t1 = balancingCosts;
+		t2 = balancingEnergy;
+		System.out.printf("Balancing costs BETA	\t: % .2f € \t Energy: % .2f KWh     \t Avg: % .2f €/KWh\n", t1,t2,t2/t1);
+		t1 = marketManager.getBalancingCosts();
+		t2 = marketManager.getTotalBalancingEnergy();
+		System.out.printf("Balancing costs MM	\t: % .2f € \t Energy: % .2f KWh     \t Avg: % .2f €/KWh\n", t1,t2,t2/t1);
+		t1 = marketManager.getDistributionCosts();
+		t2 = marketManager.getTotalDistributionEnergy();
+		System.out.printf("Distribution costs	\t: % .2f € \t Energy: % .2f KWh     \t Avg: % .2f €/KWh\n",t1,t2,t2/t1);
+		t1 = marketManager.getWholesaleCosts()[0];
+		t2 = marketManager.getWholesaleEnergy()[0];
+		System.out.printf("Wholesale market buying \t: % .2f € \t Energy: % .2f KWh     \t Avg: % .2f €/KWh\n",t1,t2,t2/t1 );
+		t1 = marketManager.getWholesaleCosts()[1];
+		t2 = marketManager.getWholesaleEnergy()[1];
+		System.out.printf("Wholesale market selling\t: % .2f € \t Energy: % .2f KWh     \t Avg: % .2f €/KWh\n",t1,t2,t2/t1);
   }
   
   private void createInitialTariffs() {

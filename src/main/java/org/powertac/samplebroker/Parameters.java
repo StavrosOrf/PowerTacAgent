@@ -26,16 +26,16 @@ public class Parameters {
 	
 	  public static String MyName = "mc0";
 	  
-
+	  
 	
 	  //retail module Parameters	
 	  public static int reevaluationCons = 30;
 	  public static int reevaluationStorage = 2*reevaluationCons;
 	  public static int reevaluationProduction = 3*reevaluationCons;
 	  public static int reevaluationInterruptible = 2 *reevaluationCons;
-	  
+	  	  
 	  public static int initialTariffBound = 365;
-	  public static int LATE_GAME = 1400;
+	  public static int LATE_GAME = 1800;
 	  public static double LATE_GAME_ADDEED_PRICE = -0.8;
 	  
 	  //Database related parameters
