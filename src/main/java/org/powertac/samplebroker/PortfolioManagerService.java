@@ -89,6 +89,9 @@ implements PortfolioManager, Initializable, Activatable
 
   @Autowired
   private MarketManager marketManager;
+  
+//  @Autowired
+//  private ContextManagerService contextmanager;
 
   @Autowired
   private TimeService timeService;
@@ -460,6 +463,12 @@ implements PortfolioManager, Initializable, Activatable
         double currentCharge = tariffCharges.get(ttx.getTariffSpec());
         tariffCharges.put(ttx.getTariffSpec(),currentCharge+ ttx.getCharge());
     }
+    else if (TariffTransaction.Type.PUBLISH == txType) {
+//    	System.out.println("Publish: " + ttx.getCharge() + " " + ttx.getKWh() + " "  + ttx.toString());
+    }
+    else if (TariffTransaction.Type.WITHDRAW == txType) {
+    	System.out.println("Withdraw: " + ttx.getCharge() + " " + ttx.getKWh() + " "  + ttx.toString());
+    }
   }
 
   /**
@@ -523,21 +532,23 @@ implements PortfolioManager, Initializable, Activatable
 	  
 	  ArrayList<TariffSpecification> t ;
 	  TariffSpecification tempTariff ;
-	  System.out.printf("Energy Usage: %.2f KWh\n", collectUsage(timeslotIndex));
+	  System.out.printf("Energy Usage: %.2f KWh   ts %d \n", collectUsage(timeslotIndex),timeslotIndex);
       if (customerSubscriptions.size() == 0) {
         // we (most likely) have no tariffs
         createInitialTariffs();
       } 
       else {
-    	 calculateWeights();
+    	 
     	 if(timeslotRepo.currentTimeslot().getSerialNumber() > Parameters.LATE_GAME) {
     		 isLateGame = true;
     	 }else {
     		 isLateGame = false;
     	 }
-
+    	 
+    	 enableConsumption = false;
+    	 
     	 if(timer == Parameters.reevaluationCons) {
-    		
+    		calculateWeights();
     		if(timer2 == Parameters.reevaluationInterruptible) {
     			enableInterruptible = true;
     		}else {
@@ -553,18 +564,22 @@ implements PortfolioManager, Initializable, Activatable
     			timer2 = 0;
     		}else {
     			enableProduction = false;
-    		}
-    		
+    		}   		
     		
     		System.out.println("Its time");
     		printBalanceStats();
+    		System.out.println("");
 
     		tariffDB.decayFittnessValue(0);
     		tariffDB.decayFittnessValue(1);
     		
     		for (TariffSpecification spec : customerSubscriptions.keySet()) {
-    			if(tariffCharges.get(spec) == null)
+    			if(tariffCharges.get(spec) == null) {
+//    				System.out.print("NULL + |");
+//    				printTariff(spec);
     				continue;
+    			}
+    				
     			
     			Map<CustomerInfo, CustomerRecord> m = customerSubscriptions.get(spec);
     			int count = 0;
@@ -573,8 +588,9 @@ implements PortfolioManager, Initializable, Activatable
     				count += r.subscribedPopulation;
     			}
     			// Print info about customers
-    			if(tariffCharges.get(spec) != 0) {
-    				System.out.printf("-- Profit: % 8.2f ",tariffCharges.get(spec));
+//    			if(tariffCharges.get(spec) != 0) {
+    			if(true) {
+    				System.out.printf("-- Profit: % 8.2f ",tariffCharges.get(spec));	
     				
     			    switch(spec.getPowerType().toString()) {
     		    	case "CONSUMPTION":
@@ -632,11 +648,23 @@ implements PortfolioManager, Initializable, Activatable
 					}
     			}
     			
-    			t = tariffDB.getBestTariff(2, spec.getPowerType(),spec.getBroker(),1,false,marketManager.getCompetitors());
+    			PowerType pt = spec.getPowerType();
+    			if(tariffDB.getNumberOfRecords(pt,brokerContext.getBroker().getUsername(),1,false,marketManager.getCompetitors()) < 2) {
+
+    				if(tariffDB.getNumberOfRecords(pt,brokerContext.getBroker().getUsername(),0,false,marketManager.getCompetitors()) < 2) {
+    					continue;
+    				}else{
+    					t = tariffDB.getBestTariff(2, pt,brokerContext.getBroker(),0,false,marketManager.getCompetitors());
+    				}
+    			}else{
+    					t = tariffDB.getBestTariff(2, pt,brokerContext.getBroker(),1,false,marketManager.getCompetitors());
+
+    			}
     			
-    			if(tariffDB.getNumberOfRecords(spec.getPowerType(),Parameters.MyName,1,false,marketManager.getCompetitors()) < 2)
-    				continue;
-    			
+//    			t = tariffDB.getBestTariff(2, spec.getPowerType(),spec.getBroker(),1,false,marketManager.getCompetitors());
+//    			
+//    			if(tariffDB.getNumberOfRecords(spec.getPowerType(),Parameters.MyName,1,false,marketManager.getCompetitors()) < 2)
+//    				continue; 			
     			
     			if(spec.getPowerType() == PowerType.CONSUMPTION  && enableConsumption) {
     				tempTariff = crossoverTariffs(t);
@@ -734,6 +762,8 @@ implements PortfolioManager, Initializable, Activatable
       
       for (CustomerRecord record: notifyOnActivation)
         record.activate();
+      
+      System.out.println("-");
   }
   
   //calculate avg rate of a tariff weighted or normal average
@@ -783,6 +813,7 @@ implements PortfolioManager, Initializable, Activatable
 		  wWd[i] *= 24/sumWd;
 		  wWe[i] *= 24/sumWe;
 	  }  
+	  //TODO check that all weights are adove a value so no very small rates would be applied
 	  weightWe = wWe;
 	  weightWd = wWd;
   }
@@ -813,7 +844,11 @@ implements PortfolioManager, Initializable, Activatable
 		  else
 			  r.withDailyEnd(0);
 		  
-		  r.withMinValue(avg*wWe[i]);
+		  if(avg*wWe[i] < Parameters.MIN_RATE_VALUE)
+			  r.withMinValue(avg*wWe[i]);
+		  else
+			  r.withMinValue(Parameters.MIN_RATE_VALUE);
+		  
 		  r.withMaxCurtailment(maxCurtailment);
 //		  System.out.println(avg*wWe[i]);
 		  spec.addRate(r);
@@ -1083,16 +1118,24 @@ implements PortfolioManager, Initializable, Activatable
 //	  spec.withMinDuration(ecl);
 	  
 	  //Mutating avg rate value
+	  double a1 = 0;
 	  temp = 0;
-	  
-	  temp = calculateAvgRate(spec,false);
+	  if(spec.getRates() != null) {
+		  for (Rate r : spec.getRates()) {
+			a1 += r.getMinValue();
+		  }
+
+		  int n1 = spec.getRates().size();
+		  temp = a1 / n1;
+	  }
+//	  temp = calculateAvgRate(spec,false);
 	  
 	  if(temp == 0) {
 		  temp = -0.1;
 	  }
 	  
-	  if(isLateGame)
-		  temp += Parameters.LATE_GAME_ADDEED_PRICE;
+//	  if(isLateGame)
+//		  temp += Parameters.LATE_GAME_ADDEED_PRICE;
 	  
 	  temp = temp * (1 - ep )+  (temp * (1 +  ep ) - temp * (1 - ep ))*rnd.nextDouble();
 	
@@ -1186,31 +1229,37 @@ implements PortfolioManager, Initializable, Activatable
 		  n2 = t.getRegulationRates().size();
 	  }
 	  
-      System.out.printf(" \tT_id:%d %30s, %15s| Periodic: % 5.4f Signup:% 5.2f Ewp:% 5.2f ContractL:%10d ts | Rates:%3d Avg:% 3.4f  RegRates:%3d \t",
+      System.out.printf(" \tID:%d %30s, %15s| Periodic: % 5.4f Signup:% 5.2f Ewp:% 5.2f ContractL:%10d ts | Rates:%3d Avg:% 3.4f  RegRates:%3d \t",
       t.getId(), t.getPowerType().toString(),t.getBroker().getUsername(),t.getPeriodicPayment(),
       t.getSignupPayment(),t.getEarlyWithdrawPayment(),t.getMinDuration()/5000,n1,a1,n2);
+      
+      if(t.getRegulationRates().size() >= 1) {
+    	  for(RegulationRate r : t.getRegulationRates())
+    		  System.out.printf("UpReg % .4f DownReg % .4f| ",r.getUpRegulationPayment(),r.getDownRegulationPayment());
+      }
       
       if(t.getPowerType() == PowerType.CONSUMPTION) {
     	  double we[] = new double[24];
     	  double wd[] = new double[24];
-    	  if(t.getRates().size() != 48) {
-    		  System.out.println(" ");
-    		  return;
-    	  }
-    		  
     	  
-    	  for(Rate r : t.getRates()) {
-    		  if(r.getWeeklyBegin()<6) {
-    			  we[r.getDailyBegin()] = r.getMinValue();
-    		  }else {
-    			  wd[r.getDailyBegin()] = r.getMinValue();
-    		  }
-    	  }
-    	  for(int i=0 ;i<24;i++) {
-    		  System.out.printf(" % 1.3f|",we[i]);
-    	  }
-    	  for(int i=0 ;i<24;i++) {
-    		  System.out.printf(" % 1.3f|",wd[i]);
+    	  if(t.getRates().size() == 48) {
+        	  for(Rate r : t.getRates()) {
+        		  if(r.getWeeklyBegin()<6) {
+        			  we[r.getDailyBegin()] = r.getMinValue();
+        		  }else {
+        			  wd[r.getDailyBegin()] = r.getMinValue();
+        		  }
+        	  }
+        	  for(int i=0 ;i<24;i++) {
+        		  System.out.printf(" % 1.3f|",we[i]);
+        	  }
+        	  for(int i=0 ;i<24;i++) {
+        		  System.out.printf(" % 1.3f|",wd[i]);
+        	  }
+    	  }else if (t.getRates().size() != 96) {
+    		  for(Rate r : t.getRates()) {
+    			  System.out.printf("% d %2d  % 1.3f|",r.getWeeklyBegin(),r.getDailyBegin(),r.getMinValue());
+    		  }		  
     	  }
       }
       System.out.println(" ");
@@ -1244,15 +1293,14 @@ implements PortfolioManager, Initializable, Activatable
 	  TariffSpecification tempTariff;
 	  System.out.println("Creating Initial Tariffs....");
 	  for (PowerType pt : customerProfiles.keySet()) {
-		  System.out.println("lvl 2");
 		  	//check level 1 of db for initial tariffs
 			if(tariffDB.getNumberOfRecords(pt,brokerContext.getBroker().getUsername(),1,true,marketManager.getCompetitors()) < 2) {
-				System.out.println("lvl 1: " + tariffDB.getNumberOfRecords(pt,brokerContext.getBroker().getUsername(),1,true,marketManager.getCompetitors()) );
-				System.out.println(pt.toString());
+//				System.out.println("lvl 1: " + tariffDB.getNumberOfRecords(pt,brokerContext.getBroker().getUsername(),1,true,marketManager.getCompetitors()) );
+//				System.out.println(pt.toString());
 				if(tariffDB.getNumberOfRecords(pt,brokerContext.getBroker().getUsername(),0,true,marketManager.getCompetitors()) < 2) {
 					//call the default createInitialTariffs
-					System.out.println("lvl 0" + tariffDB.getNumberOfRecords(pt,brokerContext.getBroker().getUsername(),0,true,marketManager.getCompetitors()));
-					System.out.println(pt.toString());
+//					System.out.println("lvl 0" + tariffDB.getNumberOfRecords(pt,brokerContext.getBroker().getUsername(),0,true,marketManager.getCompetitors()));
+//					System.out.println(pt.toString());
 					tempTariff = createInitialTariffSampleBroker(pt);
 				}else{
 					t = tariffDB.getBestTariff(2, pt,brokerContext.getBroker(),0,true,marketManager.getCompetitors());

@@ -15,6 +15,8 @@
  */
 package org.powertac.samplebroker;
 
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Random;
@@ -45,6 +47,8 @@ import org.powertac.samplebroker.interfaces.BrokerContext;
 import org.powertac.samplebroker.interfaces.Initializable;
 import org.powertac.samplebroker.interfaces.MarketManager;
 import org.powertac.samplebroker.interfaces.PortfolioManager;
+import org.powertac.samplebroker.utility.Node;
+import org.powertac.samplebroker.utility.TeePrintStream;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -184,10 +188,22 @@ implements MarketManager, Initializable, Activatable
   public synchronized void handleMessage (Competition comp)
   {
     minMWh = Math.max(minMWh, comp.getMinimumOrderQuantity());
+    
+    
+	try {
+	    FileOutputStream file = new FileOutputStream("..\\..\\logs\\" + comp.getName() + ".output.txt");
+	    TeePrintStream tee = new TeePrintStream(file, System.out);
+	    System.setOut(tee);
+	} catch (FileNotFoundException e) {
+		// TODO Auto-generated catch block
+		System.out.println("error writing to file");
+		e.printStackTrace();
+	}
+
     System.out.println("Competition name: "+ comp.getName());
     System.out.print("Competitors: ");
     for (String s : comp.getBrokers()) {
-		System.out.print(s);
+		System.out.print(s+ " ");
 	}
     System.out.println("");
     this.comp = comp;
@@ -341,8 +357,10 @@ implements MarketManager, Initializable, Activatable
    */
   public synchronized void handleMessage (BalanceReport report)
   {
-//	  report.getTimeslotIndex()
-//	  System.out.println("Imbalance: " + report.getNetImbalance());
+
+	  System.out.printf("Imbalance: ts: %d  %10.2f market position %10.2f \n" ,report.getTimeslotIndex(),report.getNetImbalance() 
+			  	,broker.getBroker().findMarketPositionByTimeslot(report.getTimeslotIndex()).getOverallBalance()*1000);
+	  
   }
 
   // ----------- per-timeslot activation ---------------
@@ -356,9 +374,18 @@ implements MarketManager, Initializable, Activatable
   @Override
   public synchronized void activate (int timeslotIndex)
   {
-	  updateUsage(portfolioManager.collectUsage(timeslotIndex), timeslotIndex); 
-	  	  
-    double neededKWh = 0.0;
+	updateUsage(portfolioManager.collectUsage(timeslotIndex), timeslotIndex); 
+	double neededKWh = 0.0;
+//    MarketPosition posn = broker.getBroker().findMarketPositionByTimeslot(timeslotRepo.currentTimeslot().getSerialNumber());
+//    
+//    
+//    if (posn != null) {
+//    	int index = (timeslotRepo.currentTimeslot().getSerialNumber()) % broker.getUsageRecordLength();
+//    	neededKWh = portfolioManager.collectUsage(index);
+//    	neededKWh -= posn.getOverallBalance();
+//    	System.out.printf("Needed Energy current ts: %.2f KW\n", neededKWh);
+//    }
+    
     log.debug(" Current timeslot is " + timeslotRepo.currentTimeslot().getSerialNumber());
     System.out.println("\n|---------------------|  Current timeslot is " + timeslotRepo.currentTimeslot().getSerialNumber());
     for (Timeslot timeslot : timeslotRepo.enabledTimeslots()) {

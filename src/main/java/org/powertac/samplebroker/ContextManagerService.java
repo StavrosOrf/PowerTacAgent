@@ -74,6 +74,7 @@ implements Initializable
   public void handleMessage (BankTransaction btx)
   {
     // TODO - handle this
+//	  System.out.println("BANK transaction : "+ btx.getPostedTimeslot() + "  Interest: " + btx.getAmount());
   }
 
   /**
@@ -92,6 +93,8 @@ implements Initializable
   public void handleMessage (DistributionReport dr)
   {
     // TODO - use this data
+	  // it reports usage for PREVIOUS timeslot => ts = ts -1
+//	  System.out.printf("DR: Timeslot %d Production: %.2f  Consumption:  %.2f",dr.getTimeslot(), dr.getTotalProduction(),dr.getTotalConsumption());
   }
   
   /**

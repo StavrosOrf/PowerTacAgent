@@ -13,10 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.powertac.samplebroker;
+package org.powertac.samplebroker.utility;
 
 import java.util.ArrayList;
 import java.util.Random;
+
+import org.powertac.samplebroker.Parameters;
 
 /**
  * This class represent a node of the monte carlo tree search in the wholesale
