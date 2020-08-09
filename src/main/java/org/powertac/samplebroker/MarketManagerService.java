@@ -48,6 +48,7 @@ import org.powertac.samplebroker.interfaces.Initializable;
 import org.powertac.samplebroker.interfaces.MarketManager;
 import org.powertac.samplebroker.interfaces.PortfolioManager;
 import org.powertac.samplebroker.utility.Node;
+import org.powertac.samplebroker.utility.EnergyPredictor;
 import org.powertac.samplebroker.utility.TeePrintStream;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -73,6 +74,8 @@ implements MarketManager, Initializable, Activatable
   
   @Autowired
   private PortfolioManager portfolioManager;
+  
+  private EnergyPredictor energyPredictor;
 
   // ------------ Configurable parameters --------------
   // max and min offer prices. Max means "sure to trade"
@@ -188,7 +191,7 @@ implements MarketManager, Initializable, Activatable
   public synchronized void handleMessage (Competition comp)
   {
     minMWh = Math.max(minMWh, comp.getMinimumOrderQuantity());
-    
+    energyPredictor = new EnergyPredictor();
     
 	try {
 	    FileOutputStream file = new FileOutputStream("..\\..\\logs\\" + comp.getName() + ".output.txt");
@@ -349,6 +352,14 @@ implements MarketManager, Initializable, Activatable
    */
   public synchronized void handleMessage (WeatherReport report)
   {
+	  if(report.getTimeslotIndex()< 365)
+		  return;
+	  
+	  int hour = getTimeSlotHour(report.getTimeslotIndex());
+	  int day = getTimeSlotDay(report.getTimeslotIndex());
+	  System.out.printf("Energy Prediction: Timeslot %d Total: %.2f \n",
+			  			report.getTimeslotIndex(),energyPredictor.getKWhPredictor(day, hour, report));
+//	  System.out.println("123");
   }
 
   /**
@@ -358,9 +369,8 @@ implements MarketManager, Initializable, Activatable
   public synchronized void handleMessage (BalanceReport report)
   {
 
-	  System.out.printf("Imbalance: ts: %d  %10.2f market position %10.2f \n" ,report.getTimeslotIndex(),report.getNetImbalance() 
-			  	,broker.getBroker().findMarketPositionByTimeslot(report.getTimeslotIndex()).getOverallBalance()*1000);
-	  
+//	  System.out.printf("Imbalance: ts: %d  %10.2f market position %10.2f \n" ,report.getTimeslotIndex(),report.getNetImbalance() 
+//			  	,broker.getBroker().findMarketPositionByTimeslot(report.getTimeslotIndex()).getOverallBalance()*1000); 
   }
 
   // ----------- per-timeslot activation ---------------
@@ -683,7 +693,7 @@ private void printTree(Node n) {
     int remainingTries = (timeslot - current
                           - Competition.currentCompetition().getDeactivateTimeslotsAhead());
     log.debug("remainingTries: " + remainingTries);
-    if (remainingTries > -1) { ////!
+    if (remainingTries > 0) { ////!
       double range = (minPrice - oldLimitPrice) * 2.0 / (double)remainingTries;
       log.debug("oldLimitPrice=" + oldLimitPrice + ", range=" + range);
       double computedPrice = oldLimitPrice + randomGen.nextDouble() * range; 

@@ -403,7 +403,7 @@ public class Database {
 
 
 			conn.commit();
-		} catch (SQLException ex) {
+		} catch (Exception ex) {
 	         System.out.println("DELETE Level: in connection" + ex);
 		}
 	}

@@ -16,6 +16,7 @@
 package org.powertac.samplebroker;
 
 import org.apache.logging.log4j.Logger;
+import org.joda.time.DateTimeFieldType;
 import org.apache.logging.log4j.LogManager;
 import org.powertac.common.BankTransaction;
 import org.powertac.common.CashPosition;
@@ -94,7 +95,9 @@ implements Initializable
   {
     // TODO - use this data
 	  // it reports usage for PREVIOUS timeslot => ts = ts -1
-//	  System.out.printf("DR: Timeslot %d Production: %.2f  Consumption:  %.2f",dr.getTimeslot(), dr.getTotalProduction(),dr.getTotalConsumption());
+	  System.out.printf("DR: Timeslot %d Production: %.2f  Consumption:  %.2f  Total: %.2f \n",
+			  				dr.getTimeslot(), dr.getTotalProduction(),dr.getTotalConsumption(),dr.getTotalConsumption()-dr.getTotalProduction());
+
   }
   
   /**
@@ -114,4 +117,5 @@ implements Initializable
   {
     // TODO - adapt to the server setup.
   }
+  
 }

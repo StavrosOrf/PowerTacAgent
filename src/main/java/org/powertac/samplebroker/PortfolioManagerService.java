@@ -532,7 +532,7 @@ implements PortfolioManager, Initializable, Activatable
 	  
 	  ArrayList<TariffSpecification> t ;
 	  TariffSpecification tempTariff ;
-	  System.out.printf("Energy Usage: %.2f KWh   ts %d \n", collectUsage(timeslotIndex),timeslotIndex);
+//	  System.out.printf("Energy Usage: %.2f KWh   ts %d \n", collectUsage(timeslotIndex),timeslotIndex);
       if (customerSubscriptions.size() == 0) {
         // we (most likely) have no tariffs
         createInitialTariffs();
