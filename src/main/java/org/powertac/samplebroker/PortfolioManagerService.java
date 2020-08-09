@@ -545,10 +545,12 @@ implements PortfolioManager, Initializable, Activatable
     		 isLateGame = false;
     	 }
     	 
-    	 enableConsumption = false;
+//    	 enableConsumption = false;
     	 
     	 if(timer == Parameters.reevaluationCons) {
-    		calculateWeights();
+//    		calculateWeights();
+    		calculateWeightsPredictor();
+    		
     		if(timer2 == Parameters.reevaluationInterruptible) {
     			enableInterruptible = true;
     		}else {
@@ -818,6 +820,50 @@ implements PortfolioManager, Initializable, Activatable
 	  weightWd = wWd;
   }
   
+  //calculate the weights for the tou rates using predictor
+  private void calculateWeightsPredictor() {
+	  
+	  double clearingPriceWd[] = marketManager.getAvgClearingPriceWd();
+	  double clearingPriceWe[] = marketManager.getAvgClearingPriceWe();
+	  double netUsageWd[] = marketManager.getNetUsagePredictorWd();
+	  double netUsageWe[] = marketManager.getNetUsagePredictorWe();
+	  double wWe[] = new double[24];
+	  double wWd[] = new double[24];
+	  double sumWe = 0, sumWd = 0;
+	  
+//	  for(int i = 0; i<24 ;i++) {
+//		  System.out.printf(" %.2f |",netUsageWd[i]);
+//	  }
+//	  for(int i = 0; i<24 ;i++) {
+//		  System.out.printf(" %.2f |",netUsageWe[i]);
+//	  }
+//	  System.out.println("");
+//	  for(int i = 0; i<24 ;i++) {
+//		  System.out.printf(" %.2f |",clearingPriceWd[i]);
+//	  }
+//	  for(int i = 0; i<24 ;i++) {
+//		  System.out.printf(" %.2f |",clearingPriceWe[i]);
+//	  }
+//	  System.out.println("");
+	  
+	  //TOU formula
+	  for(int i = 0; i<24 ; i++) {
+		  wWd[i] = clearingPriceWd[i]*netUsageWd[i];
+		  wWe[i] = clearingPriceWe[i]*netUsageWe[i];
+		  
+		  sumWe += wWe[i];
+		  sumWd += wWd[i];  
+	  }
+	  //normalize
+	  for(int i = 0; i<24 ; i++) {
+		  wWd[i] *= 24/sumWd;
+		  wWe[i] *= 24/sumWe;
+	  }  
+	  //TODO check that all weights are adove a value so no very small rates would be applied
+	  weightWe = wWe;
+	  weightWd = wWd;
+  }
+  
   //Function producing time of use rates for the given tariff
   private TariffSpecification produceTOURates(TariffSpecification t, double avg,double maxCurtailment){
 	  
@@ -844,10 +890,10 @@ implements PortfolioManager, Initializable, Activatable
 		  else
 			  r.withDailyEnd(0);
 		  
-		  if(avg*wWe[i] < Parameters.MIN_RATE_VALUE)
-			  r.withMinValue(avg*wWe[i]);
-		  else
-			  r.withMinValue(Parameters.MIN_RATE_VALUE);
+//		  if(avg*wWe[i] < Parameters.MIN_RATE_VALUE)
+//			  r.withMinValue(Parameters.MIN_RATE_VALUE); 
+//		  else
+			  r.withMinValue(avg*wWe[i]);			  
 		  
 		  r.withMaxCurtailment(maxCurtailment);
 //		  System.out.println(avg*wWe[i]);

@@ -50,7 +50,7 @@ public class Parameters {
 	  public static int Ecl = timeslotMS* (4* reevaluationCons/5)*10000;
 	  public static double Ereg = 0.05;
 	  
-	  public static double MIN_RATE_VALUE = -0.1;
+//	  public static double MIN_RATE_VALUE = -0.1; 
 	
       //wholesale module Parameters
 	  public static int MAX_ITERATIONS = 1000;

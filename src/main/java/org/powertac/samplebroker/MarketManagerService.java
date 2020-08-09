@@ -36,14 +36,17 @@ import org.powertac.common.Order;
 import org.powertac.common.Orderbook;
 import org.powertac.common.Timeslot;
 import org.powertac.common.WeatherForecast;
+import org.powertac.common.WeatherForecastPrediction;
 import org.powertac.common.WeatherReport;
 import org.powertac.common.config.ConfigurableValue;
 import org.powertac.common.msg.BalanceReport;
+import org.powertac.common.msg.DistributionReport;
 import org.powertac.common.msg.MarketBootstrapData;
 import org.powertac.common.repo.TimeslotRepo;
 import org.powertac.samplebroker.core.BrokerPropertiesService;
 import org.powertac.samplebroker.interfaces.Activatable;
 import org.powertac.samplebroker.interfaces.BrokerContext;
+import org.powertac.samplebroker.interfaces.ContextManager;
 import org.powertac.samplebroker.interfaces.Initializable;
 import org.powertac.samplebroker.interfaces.MarketManager;
 import org.powertac.samplebroker.interfaces.PortfolioManager;
@@ -74,6 +77,9 @@ implements MarketManager, Initializable, Activatable
   
   @Autowired
   private PortfolioManager portfolioManager;
+  
+  @Autowired
+  private ContextManager contextManager;
   
   private EnergyPredictor energyPredictor;
 
@@ -118,6 +124,8 @@ implements MarketManager, Initializable, Activatable
   private int tradesPassedWe[] = new int[24];
   private int tradesPassedWd[] = new int[24];
   
+  private double netUsagePredictorWe[] = new double[24];
+  private double netUsagePredictorWd[] = new double[24];
   private double netUsageWe[] = new double[24];
   private double netUsageWd[] = new double[24];
   private int netUsageCounterWe[] = new int[24];
@@ -128,6 +136,9 @@ implements MarketManager, Initializable, Activatable
   private double totalBalancingEnergy = 0;
   private double totalWholesaleCosts[] = new double[2];
   private double totalWholesaleEnergy[] = new double[2];
+  
+  private double totalPredictedEnergyKWH = 0;
+  private WeatherReport prevWeatherReport = null;
   
   public Competition comp;
   
@@ -170,6 +181,7 @@ implements MarketManager, Initializable, Activatable
     	netUsageCounterWe[i] = 1;
     	netUsageCounterWd[i] = 1;
     }
+
   }
 
   // ----------------- data access -------------------
@@ -345,6 +357,22 @@ implements MarketManager, Initializable, Activatable
    */
   public synchronized void handleMessage (WeatherForecast forecast)
   {
+	  int hour,day;
+	  double pr;
+	  int ts = forecast.getTimeslotIndex();
+	  for(WeatherForecastPrediction f : forecast.getPredictions()) {
+		  hour = getTimeSlotHour(ts + f.getForecastTime());
+		  day = getTimeSlotDay(ts + f.getForecastTime());
+		  
+		  pr = energyPredictor.getKWhPredictor(day, hour,
+				new WeatherReport(ts + f.getForecastTime(), f.getTemperature(), f.getWindSpeed(), f.getWindDirection(), f.getCloudCover()));
+		  
+		  if(day < 6) {
+			  netUsagePredictorWd[hour] = pr;
+		  }else {
+			  netUsagePredictorWe[hour] = pr;
+		  }
+	  }
   }
 
   /**
@@ -352,14 +380,34 @@ implements MarketManager, Initializable, Activatable
    */
   public synchronized void handleMessage (WeatherReport report)
   {
-	  if(report.getTimeslotIndex()< 365)
-		  return;
+	  int hour = getTimeSlotHour( report.getTimeslotIndex());
+	  int day = getTimeSlotDay( report.getTimeslotIndex());
+	  double pr = energyPredictor.getKWhPredictor(day, hour, report);
 	  
-	  int hour = getTimeSlotHour(report.getTimeslotIndex());
-	  int day = getTimeSlotDay(report.getTimeslotIndex());
-	  System.out.printf("Energy Prediction: Timeslot %d Total: %.2f \n",
-			  			report.getTimeslotIndex(),energyPredictor.getKWhPredictor(day, hour, report));
+	  if(day < 6) {
+		  netUsagePredictorWd[hour] = pr;
+	  }else {
+		  netUsagePredictorWe[hour] = pr;
+	  }
+	  
+	  if(report.getTimeslotIndex()< 362) {
+		  prevWeatherReport = report;
+		  return;
+	  }
+		  
+	  hour = getTimeSlotHour(prevWeatherReport.getTimeslotIndex());
+	  day = getTimeSlotDay(prevWeatherReport.getTimeslotIndex());
+	  DistributionReport dr = contextManager.getReport();
+	  pr = energyPredictor.getKWhPredictor(day, hour, prevWeatherReport);
+	  totalPredictedEnergyKWH += pr;
+	  
+	  if(dr != null) {
+//		  System.out.printf("Energy Prediction: Timeslot %d Energy( %.2f ) |Actual Energy timeslot %d ( %.2f )  | diff: %.2f %% \n",
+//				  prevWeatherReport.getTimeslotIndex(),pr,
+//		  			dr.getTimeslot(),dr.getTotalConsumption(),(dr.getTotalConsumption()-pr)*100/dr.getTotalConsumption());  
+	  }
 //	  System.out.println("123");
+	  prevWeatherReport = report;
   }
 
   /**
@@ -386,16 +434,12 @@ implements MarketManager, Initializable, Activatable
   {
 	updateUsage(portfolioManager.collectUsage(timeslotIndex), timeslotIndex); 
 	double neededKWh = 0.0;
-//    MarketPosition posn = broker.getBroker().findMarketPositionByTimeslot(timeslotRepo.currentTimeslot().getSerialNumber());
-//    
-//    
-//    if (posn != null) {
-//    	int index = (timeslotRepo.currentTimeslot().getSerialNumber()) % broker.getUsageRecordLength();
-//    	neededKWh = portfolioManager.collectUsage(index);
-//    	neededKWh -= posn.getOverallBalance();
-//    	System.out.printf("Needed Energy current ts: %.2f KW\n", neededKWh);
-//    }
-    
+	
+	if(timeslotIndex % Parameters.reevaluationCons == 0) {
+		System.out.printf("Current total deviation:%.2f %% \n",
+				(contextManager.totalActualEnergy()-totalPredictedEnergyKWH)*100/contextManager.totalActualEnergy());
+	}
+
     log.debug(" Current timeslot is " + timeslotRepo.currentTimeslot().getSerialNumber());
     System.out.println("\n|---------------------|  Current timeslot is " + timeslotRepo.currentTimeslot().getSerialNumber());
     for (Timeslot timeslot : timeslotRepo.enabledTimeslots()) {
@@ -409,7 +453,7 @@ implements MarketManager, Initializable, Activatable
  
     }
 //    System.out.println("|_____________________|");
-    
+//    	System.out.println("--");
   }
   void printAboutTimeslot(Timeslot t) {
 	  if(WH_PRINT_ON)
@@ -845,6 +889,15 @@ public double getTotalBalancingEnergy() {
 public void setTotalBalancingEnergy(double totalBalancingEnergy) {
 	this.totalBalancingEnergy = totalBalancingEnergy;
 }
+
+public double[] getNetUsagePredictorWe() {
+	return netUsagePredictorWe;
+}
+
+public double[] getNetUsagePredictorWd() {
+	return netUsagePredictorWd;
+}
+
   
   
 }
