@@ -876,7 +876,7 @@ implements PortfolioManager, Initializable, Activatable
 	  double wWe[] = new double[24];
 	  double wWd[] = new double[24];
 
-	  calculateWeights();
+	  calculateWeightsPredictor();
 	  wWe = weightWe;
 	  wWd = weightWd;
 	  
