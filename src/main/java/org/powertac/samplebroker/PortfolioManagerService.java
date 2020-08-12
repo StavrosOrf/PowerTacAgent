@@ -26,6 +26,7 @@ import java.util.Random;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
 import org.joda.time.Instant;
+import org.nd4j.nativeblas.Nd4jCpu.thresholdedrelu;
 import org.powertac.common.Broker;
 import org.powertac.common.Competition;
 import org.powertac.common.CustomerInfo;
@@ -39,6 +40,7 @@ import org.powertac.common.enumerations.PowerType;
 import org.powertac.common.msg.BalancingControlEvent;
 import org.powertac.common.msg.BalancingOrder;
 import org.powertac.common.msg.CustomerBootstrapData;
+import org.powertac.common.msg.DistributionReport;
 import org.powertac.common.msg.EconomicControlEvent;
 import org.powertac.common.msg.TariffRevoke;
 import org.powertac.common.msg.TariffStatus;
@@ -48,6 +50,7 @@ import org.powertac.common.repo.TimeslotRepo;
 import org.powertac.samplebroker.core.BrokerPropertiesService;
 import org.powertac.samplebroker.interfaces.Activatable;
 import org.powertac.samplebroker.interfaces.BrokerContext;
+import org.powertac.samplebroker.interfaces.ContextManager;
 import org.powertac.samplebroker.interfaces.Initializable;
 import org.powertac.samplebroker.interfaces.MarketManager;
 import org.powertac.samplebroker.interfaces.PortfolioManager;
@@ -90,9 +93,9 @@ implements PortfolioManager, Initializable, Activatable
   @Autowired
   private MarketManager marketManager;
   
-//  @Autowired
-//  private ContextManagerService contextmanager;
-
+  @Autowired
+  private ContextManager contextManager;
+  
   @Autowired
   private TimeService timeService;
 
@@ -125,6 +128,7 @@ implements PortfolioManager, Initializable, Activatable
   private int windCustomersPrev = 0;
   private int BatteryCustomersPrev = 0;
   private int otherProducersPrev = 0;
+  private double totalProfits = 0;
   
   private double weightWe[] = new double[24];
   private double weightWd[] = new double[24];
@@ -137,10 +141,19 @@ implements PortfolioManager, Initializable, Activatable
   private boolean enableStorage = true;
   private boolean enableProduction = true;
   private boolean enableInterruptible = true;
-  private boolean enableConsumption = true;
   
-  private boolean isLateGame = false;
+  private boolean enableGConsumption = false;
+  private boolean enableGProduction = true;
+  private boolean enableGInterruptible = false;
+  private boolean enableGStorage = false;
   
+  private double[] bootsrapUsage = new double[360];
+  private double[] totalDemand = new double[2500];
+  private int totalDemandLength = 0;
+  private double[] peakDemand = new double[3];
+  private int[] peakDemandTS = new int[3];
+  private double gamaParameter = 1.25;
+    
   // These customer records need to be notified on activation
   private List<CustomerRecord> notifyOnActivation = new ArrayList<>();
 
@@ -182,6 +195,9 @@ implements PortfolioManager, Initializable, Activatable
     tariffDB = new Database();
     
     tariffDB.resetGameLevel(2);
+    
+    for(int i=0;i<360;i++)
+    	bootsrapUsage[i] = 0;
     
     notifyOnActivation.clear();
   }
@@ -279,9 +295,7 @@ implements PortfolioManager, Initializable, Activatable
    */
   public synchronized void handleMessage (CustomerBootstrapData cbd)
   {
-	  CustomerInfo customer =
-            customerRepo.findByNameAndPowerType(cbd.getCustomerName(),
-                                                cbd.getPowerType());
+	  CustomerInfo customer = customerRepo.findByNameAndPowerType(cbd.getCustomerName(),cbd.getPowerType());
 	  CustomerRecord record = getCustomerRecordByPowerType(cbd.getPowerType(), customer);
 	  int subs = record.subscribedPopulation;
 	  record.subscribedPopulation = customer.getPopulation();
@@ -289,9 +303,12 @@ implements PortfolioManager, Initializable, Activatable
     	record.produceConsume(cbd.getNetUsage()[i], i);
 	  }
 	  record.subscribedPopulation = subs;
-    
+	  
+	for(int i=0; i<360 && i<cbd.getNetUsage().length;i++)
+	    bootsrapUsage[i] += cbd.getNetUsage()[i];
+	 
     //calculating customer number of each power type
-    switch(customer.getPowerType().toString()) {
+	 switch(customer.getPowerType().toString()) {
     	case "CONSUMPTION":
     		consumptionCustomers += customer.getPopulation();
     		break;
@@ -438,6 +455,8 @@ implements PortfolioManager, Initializable, Activatable
     else if (TariffTransaction.Type.PERIODIC == txType) {
     	log.info("TTX Periodic: " +ttx.getCharge() + " , " + ttx.getId() 
         + " , " + ttx.getBroker() + " , " + ttx.getTariffSpec().getPowerType().getGenericType());
+//    	System.out.println("TTX Periodic: " +ttx.getCharge() + " , " + ttx.getTariffSpec().getId() 
+//        + " , " + ttx.getBroker() + " , " + ttx.getTariffSpec().getPowerType().getGenericType());
         record.produceConsume(ttx.getKWh(), ttx.getPostedTime()); 
         double currentCharge = tariffCharges.get(ttx.getTariffSpec());
         tariffCharges.put(ttx.getTariffSpec(),currentCharge+ ttx.getCharge());
@@ -465,6 +484,8 @@ implements PortfolioManager, Initializable, Activatable
     }
     else if (TariffTransaction.Type.PUBLISH == txType) {
 //    	System.out.println("Publish: " + ttx.getCharge() + " " + ttx.getKWh() + " "  + ttx.toString());
+        double currentCharge = tariffCharges.get(ttx.getTariffSpec());
+        tariffCharges.put(ttx.getTariffSpec(),currentCharge+ ttx.getCharge());
     }
     else if (TariffTransaction.Type.WITHDRAW == txType) {
     	System.out.println("Withdraw: " + ttx.getCharge() + " " + ttx.getKWh() + " "  + ttx.toString());
@@ -529,23 +550,25 @@ implements PortfolioManager, Initializable, Activatable
   @Override // from Activatable
   public synchronized void activate (int timeslotIndex)
   {
+	  calcCapacityFees(timeslotIndex);
 	  
 	  ArrayList<TariffSpecification> t ;
 	  TariffSpecification tempTariff ;
 //	  System.out.printf("Energy Usage: %.2f KWh   ts %d \n", collectUsage(timeslotIndex),timeslotIndex);
+	  
+	  //Check if we need to update our tariffs and Print stats
       if (customerSubscriptions.size() == 0) {
         // we (most likely) have no tariffs
         createInitialTariffs();
       } 
       else {
     	 
-    	 if(timeslotRepo.currentTimeslot().getSerialNumber() > Parameters.LATE_GAME) {
-    		 isLateGame = true;
-    	 }else {
-    		 isLateGame = false;
-    	 }
+//    	 if(timeslotRepo.currentTimeslot().getSerialNumber() > Parameters.LATE_GAME) {
+//    		 isLateGame = true;
+//    	 }else {
+//    		 isLateGame = false;
+//    	 }
     	 
-//    	 enableConsumption = false;
     	 
     	 if(timer == Parameters.reevaluationCons) {
 //    		calculateWeights();
@@ -569,6 +592,13 @@ implements PortfolioManager, Initializable, Activatable
     		}   		
     		
     		System.out.println("Its time");
+    		totalProfits = 0;
+    		for (TariffSpecification spec : customerSubscriptions.keySet()) {
+    			if(tariffCharges.get(spec) == null)
+    				continue;    
+    			totalProfits += tariffCharges.get(spec);
+    		}
+    		
     		printBalanceStats();
     		System.out.println("");
 
@@ -668,7 +698,7 @@ implements PortfolioManager, Initializable, Activatable
 //    			if(tariffDB.getNumberOfRecords(spec.getPowerType(),Parameters.MyName,1,false,marketManager.getCompetitors()) < 2)
 //    				continue; 			
     			
-    			if(spec.getPowerType() == PowerType.CONSUMPTION  && enableConsumption) {
+    			if(spec.getPowerType() == PowerType.CONSUMPTION  && enableGConsumption) {
     				tempTariff = crossoverTariffs(t);
     				tempTariff = mutateConsumptionTariff(tempTariff);   				
         			tariffCharges.remove(spec);
@@ -682,7 +712,7 @@ implements PortfolioManager, Initializable, Activatable
         	        // revoke the old one
         	        TariffRevoke revoke = new TariffRevoke(brokerContext.getBroker(), spec);
         	        brokerContext.sendMessage(revoke);
-    			} else if(spec.getPowerType().isStorage() && enableStorage){
+    			} else if(spec.getPowerType().isStorage() && enableStorage && enableGStorage){
     				tempTariff = crossoverTariffs(t);
     				tempTariff = mutateStorageTariff(tempTariff);   				
         			tariffCharges.remove(spec);
@@ -695,7 +725,7 @@ implements PortfolioManager, Initializable, Activatable
         	        TariffRevoke revoke = new TariffRevoke(brokerContext.getBroker(), spec);
         	        brokerContext.sendMessage(revoke);
         	        
-    			} else if(spec.getPowerType().isProduction() && enableProduction) {
+    			} else if(spec.getPowerType().isProduction() && enableProduction && enableGProduction) {
     				tempTariff = crossoverTariffs(t);
     				tempTariff = mutateProductionTariff(tempTariff);   				
         			tariffCharges.remove(spec);
@@ -708,7 +738,7 @@ implements PortfolioManager, Initializable, Activatable
         	        TariffRevoke revoke = new TariffRevoke(brokerContext.getBroker(), spec);
         	        brokerContext.sendMessage(revoke);
         	        
-    			}else if(spec.getPowerType() == PowerType.INTERRUPTIBLE_CONSUMPTION && enableInterruptible) {
+    			}else if(spec.getPowerType() == PowerType.INTERRUPTIBLE_CONSUMPTION && enableInterruptible && enableGInterruptible) {
     				tempTariff = crossoverTariffs(t);
     				tempTariff = mutateInterruptibleConsTariff(tempTariff);
     				tariffCharges.remove(spec);
@@ -761,11 +791,104 @@ implements PortfolioManager, Initializable, Activatable
         }
       }
       
-      
       for (CustomerRecord record: notifyOnActivation)
         record.activate();
       
       System.out.println("-");
+  }
+  //calculate capacity fees
+  private void calcCapacityFees(int timeslotIndex) {
+	  if(timeslotIndex == 361) {
+		  for(int i = 0; i<336;i++) {
+			  totalDemand[i] = -bootsrapUsage[i];
+		  }
+		  totalDemandLength = 336;
+	  }
+	  
+	  if((timeslotIndex - 1 - 360) % 168 == 0 && timeslotIndex != 361) {
+		  peakDemand[0] = 0;
+		  peakDemand[1] = 0;
+		  peakDemand[2] = 0;
+		  
+	  }
+	  
+	  if(timeslotIndex >= 360) {
+		  DistributionReport dr = contextManager.getReport();
+		  double demand = dr.getTotalConsumption() - dr.getTotalProduction(),max = -1;
+		  totalDemand[totalDemandLength] = demand;
+		  double [] d ;
+		  d = peakDemand.clone();
+		  Arrays.sort(d);
+		  
+		  if(demand > d[0]) {
+		  		max = d[0];
+		  }
+				  			    	
+		  if(max != -1) {
+			  for(int i = 0; i<3;i++) {
+				  if(max == peakDemand[i]) {
+					  peakDemand[i] = demand;
+					  peakDemandTS[i] = dr.getTimeslot();
+					  break;
+				  }
+			  }
+		  }
+		  totalDemandLength ++;
+	  }
+	  
+
+	  
+	  if((timeslotIndex-360) % 168 == 0 && timeslotIndex != 360) {
+		  double[] d = new double[2];
+		  d = calcDemandMeanDeviation();
+		  double threshold = 0;
+		  
+		  if(timeslotIndex == 360+168) {
+			  if(marketManager.getCapacityFees()[0] != null) {
+				  threshold =  marketManager.getCapacityFees()[0].getThreshold();
+				  if(d[1] == 0)
+					  d[1] = 13000;
+				  gamaParameter = ( threshold - d[0])/d[1];
+			  }
+
+		  }
+		  
+		  threshold = d[0] + gamaParameter*d[1];
+		  double fees = 0;
+		  System.out.printf("Mean: %.2f \t Deviation: %.2f \t Threshold: %.2f\n",d[0],d[1],threshold);		
+		 
+		  for(int i = 0; i<3;i++) {
+			  System.out.printf("Peak: %.2f  \tTS:%4d ",peakDemand[i],peakDemandTS[i]);
+			  if(peakDemand[i] > threshold - 500) {
+				  System.out.println(" Fees: " + 1000*(peakDemand[i]-threshold));
+				  fees += 1000*(peakDemand[i]-threshold);
+			  }			  
+		  }
+		  System.out.printf("Total capacity fees: %.2f \t Threshold: %.2f\n",fees,threshold);
+	  }
+	  
+
+	  marketManager.resetCapacityFees();
+  }
+  
+  //calculate  capacity fees' mean and deviation
+  private double[] calcDemandMeanDeviation() {
+	  double mean = 0;
+	  double deviation = 0;
+	  
+	  for(int i=0 ; i < totalDemandLength ;i++) {
+		  mean += totalDemand[i];		  
+	  }
+	  mean = mean / totalDemandLength;
+	  
+	  for(int i=0 ; i < totalDemandLength ;i++) {
+		  deviation += Math.pow(totalDemand[i] - mean ,2);		  
+	  }
+	  deviation = Math.sqrt(deviation/totalDemandLength);
+	  double[] d = new double[2];
+	  d[0] = mean;
+	  d[1] = deviation;
+	  return d;
   }
   
   //calculate avg rate of a tariff weighted or normal average
@@ -791,7 +914,7 @@ implements PortfolioManager, Initializable, Activatable
 	  
 	  return 0;
   }
-  
+  /*
   //calculate the weights for the tou rates
   private void calculateWeights() {
 	  
@@ -815,10 +938,10 @@ implements PortfolioManager, Initializable, Activatable
 		  wWd[i] *= 24/sumWd;
 		  wWe[i] *= 24/sumWe;
 	  }  
-	  //TODO check that all weights are adove a value so no very small rates would be applied
 	  weightWe = wWe;
 	  weightWd = wWd;
   }
+  */
   
   //calculate the weights for the tou rates using predictor
   private void calculateWeightsPredictor() {
@@ -890,9 +1013,9 @@ implements PortfolioManager, Initializable, Activatable
 		  else
 			  r.withDailyEnd(0);
 		  
-//		  if(avg*wWe[i] < Parameters.MIN_RATE_VALUE)
-//			  r.withMinValue(Parameters.MIN_RATE_VALUE); 
-//		  else
+		  if(avg*wWe[i] > Parameters.MIN_RATE_VALUE)
+			  r.withMinValue(Parameters.MIN_RATE_VALUE); 
+		  else
 			  r.withMinValue(avg*wWe[i]);			  
 		  
 		  r.withMaxCurtailment(maxCurtailment);
@@ -971,7 +1094,7 @@ implements PortfolioManager, Initializable, Activatable
 	  
 	  double ep = Parameters.Ep;
 	  double ebp = Parameters.Ebp;
-	  int ecl = Parameters.Ecl;
+//	  int ecl = Parameters.Ecl;
 	  
 	  //Mutating periodic payment
 	  double temp = spec.getPeriodicPayment();
@@ -991,7 +1114,7 @@ implements PortfolioManager, Initializable, Activatable
 		  temp = - temp;
 	  }
 	  
-	  spec.withSignupPayment(temp);
+	  spec.withSignupPayment(0);
 	  
 	  //Mutating Early withdrawal payment
 	  spec.withEarlyWithdrawPayment(-2*temp);
@@ -1013,7 +1136,8 @@ implements PortfolioManager, Initializable, Activatable
 //	  }else {
 //		  spec.withMinDuration(ecl);
 //	  }
-	  spec.withMinDuration(ecl);
+//	  spec.withMinDuration(ecl);
+	  spec.withMinDuration(Parameters.timeslotMS * (Parameters.reevaluationProduction-2));
 	  
 	  temp = t.getRates().get(0).getMinValue();
 	  if(temp == 0) {
@@ -1037,7 +1161,7 @@ implements PortfolioManager, Initializable, Activatable
 	  double ep = Parameters.Ep;
 	  double ebp = Parameters.Ebp;
 	  double eReg = Parameters.Ereg;
-	  int ecl = Parameters.Ecl;
+//	  int ecl = Parameters.Ecl;
 	  
 	  //Mutating periodic payment
 	  double temp = spec.getPeriodicPayment();
@@ -1054,7 +1178,7 @@ implements PortfolioManager, Initializable, Activatable
 	  if(temp < 0) {
 		  temp = - temp;
 	  }
-	  spec.withSignupPayment(temp);
+	  spec.withSignupPayment(0);
 	  
 	  //Mutating Early withdrawal payment
 	  spec.withEarlyWithdrawPayment(-2*temp);
@@ -1068,7 +1192,7 @@ implements PortfolioManager, Initializable, Activatable
 //		  ecl = tmp/2;
 //	  }
 //	  tmp = tmp - ecl + rnd.nextInt(2*ecl);
-	  spec.withMinDuration(ecl);
+	  spec.withMinDuration(Parameters.timeslotMS * (Parameters.reevaluationStorage-2));
 	  
 	  double a1 = 0;
 	  temp = 0;
@@ -1200,7 +1324,7 @@ implements PortfolioManager, Initializable, Activatable
 	  printTariff(spec);
 	  double ep = Parameters.Ep;
 	  double ebp = Parameters.Ebp;
-	  int ecl = Parameters.Ecl;
+//	  int ecl = Parameters.Ecl;
 	  double temp ;
   	  
 	  //Mutating signup payment
@@ -1228,7 +1352,8 @@ implements PortfolioManager, Initializable, Activatable
 //		  ecl = tmp/2;
 //	  }
 //	  tmp = tmp - ecl + rnd.nextInt(2*ecl);
-	  spec.withMinDuration(ecl);
+//	  spec.withMinDuration(ecl);
+	  spec.withMinDuration(Parameters.timeslotMS * (Parameters.reevaluationInterruptible-2));
 	  
 	  //Mutating avg rate value and maxCurtailment
 	  double a1 = 0;
@@ -1263,6 +1388,7 @@ implements PortfolioManager, Initializable, Activatable
 	  
 	  int n1 = -1,n2 = -1;
 	  double a1 = 0;
+	  long n4 = 0;
 	  if(t.getRates() != null) {
 		  for (Rate r : t.getRates()) {
 			a1 += r.getMinValue();
@@ -1274,10 +1400,14 @@ implements PortfolioManager, Initializable, Activatable
 	  if(t.getRegulationRates() != null) {
 		  n2 = t.getRegulationRates().size();
 	  }
+	  if(t.getExpiration() != null) {
+		  n4 = t.getExpiration().getMillis()/1000;
+	  }
 	  
-      System.out.printf(" \tID:%d %30s, %15s| Periodic: % 5.4f Signup:% 5.2f Ewp:% 5.2f ContractL:%10d ts | Rates:%3d Avg:% 3.4f  RegRates:%3d \t",
+      System.out.printf(" \tID:%d %30s, %15s| Periodic: % 5.4f Signup:% 5.2f Ewp:% 5.2f ContractL:%10d ts | Rates:%3d Avg:% 3.4f  RegRates:%3d |"
+      		+ "Exp: %d|\t ",
       t.getId(), t.getPowerType().toString(),t.getBroker().getUsername(),t.getPeriodicPayment(),
-      t.getSignupPayment(),t.getEarlyWithdrawPayment(),t.getMinDuration()/5000,n1,a1,n2);
+      t.getSignupPayment(),t.getEarlyWithdrawPayment(),t.getMinDuration()/5000,n1,a1,n2,n4);
       
       if(t.getRegulationRates().size() >= 1) {
     	  for(RegulationRate r : t.getRegulationRates())
@@ -1317,21 +1447,31 @@ implements PortfolioManager, Initializable, Activatable
   
   private void printBalanceStats() {
 		double t1,t2;
+		double tariffprofits = totalProfits;
+		totalProfits = 0;
 		t1 = balancingCosts;
 		t2 = balancingEnergy;
-		System.out.printf("Balancing costs BETA	\t: % .2f € \t Energy: % .2f KWh     \t Avg: % .2f €/KWh\n", t1,t2,t2/t1);
+		totalProfits += t1;
+		System.out.printf("Balancing costs Interruptible \t: % .2f € \t Energy: % .2f KWh     \t Avg: % .2f €/KWh\n", t1,t2,t2/t1);
 		t1 = marketManager.getBalancingCosts();
 		t2 = marketManager.getTotalBalancingEnergy();
-		System.out.printf("Balancing costs MM	\t: % .2f € \t Energy: % .2f KWh     \t Avg: % .2f €/KWh\n", t1,t2,t2/t1);
+		totalProfits += t1;
+		System.out.printf("Balancing costs MM	\t: % .2f € \t Energy: % .2f KWh  \t Avg: % .2f €/KWh\n", t1,t2,t2/t1);
 		t1 = marketManager.getDistributionCosts();
 		t2 = marketManager.getTotalDistributionEnergy();
-		System.out.printf("Distribution costs	\t: % .2f € \t Energy: % .2f KWh     \t Avg: % .2f €/KWh\n",t1,t2,t2/t1);
+		totalProfits += t1;
+		System.out.printf("Distribution costs	\t: % .2f € \t Energy: % .2f KWh\t\t Avg: % .2f €/KWh\n",t1,t2,t2/t1);
 		t1 = marketManager.getWholesaleCosts()[0];
 		t2 = marketManager.getWholesaleEnergy()[0];
+		totalProfits += t1;
 		System.out.printf("Wholesale market buying \t: % .2f € \t Energy: % .2f KWh     \t Avg: % .2f €/KWh\n",t1,t2,t2/t1 );
 		t1 = marketManager.getWholesaleCosts()[1];
 		t2 = marketManager.getWholesaleEnergy()[1];
-		System.out.printf("Wholesale market selling\t: % .2f € \t Energy: % .2f KWh     \t Avg: % .2f €/KWh\n",t1,t2,t2/t1);
+		totalProfits += t1;
+		System.out.printf("Wholesale market selling\t: % .2f € \t Energy: % .2f KWh     \t Avg: % .2f €/KWh\n",t1,t2,-t2/t1);
+		System.out.printf("Market based profits total\t: % .2f € \t Tariff based profits total\t: % .2f €  \t",totalProfits,tariffprofits);
+		totalProfits += tariffprofits;
+		System.out.printf("Total profit from this period\t: % .2f € \n",totalProfits);
   }
   
   private void createInitialTariffs() {
@@ -1358,7 +1498,7 @@ implements PortfolioManager, Initializable, Activatable
 			}
 			
 				   			
-			if( pt == PowerType.CONSUMPTION) {
+			if( pt == PowerType.CONSUMPTION && enableGConsumption) {
 				tempTariff = mutateConsumptionTariff(tempTariff);   				
     			// TODO DELETE from db selected tariffs
     			//commit the new tariff
@@ -1366,29 +1506,27 @@ implements PortfolioManager, Initializable, Activatable
     	        tariffRepo.addSpecification(tempTariff);
     	        tariffCharges.put(tempTariff,0d);
     	        brokerContext.sendMessage(tempTariff); 	        
-			}else if(pt.isStorage()){
+			}else if(pt.isStorage() && enableGStorage){
 				tempTariff = mutateStorageTariff(tempTariff);   				
 				// DELETE from db selected tariffs
 				customerSubscriptions.put(tempTariff, new LinkedHashMap<>());
 				tariffRepo.addSpecification(tempTariff);
 				tariffCharges.put(tempTariff,0d);
   	        	brokerContext.sendMessage(tempTariff);
-			}else if(pt.isProduction()) {
+			}else if(pt.isProduction() && enableGProduction) {
 				tempTariff = mutateProductionTariff(tempTariff);   				
 				// DELETE from db selected tariffs
 				customerSubscriptions.put(tempTariff, new LinkedHashMap<>());
 				tariffRepo.addSpecification(tempTariff);
 				tariffCharges.put(tempTariff,0d);
 				brokerContext.sendMessage(tempTariff);
-			}else if(pt == PowerType.INTERRUPTIBLE_CONSUMPTION) {
+			}else if(pt == PowerType.INTERRUPTIBLE_CONSUMPTION && enableGInterruptible) {
 				tempTariff = mutateInterruptibleConsTariff(tempTariff);   				
 				// DELETE from db selected tariffs
 				customerSubscriptions.put(tempTariff, new LinkedHashMap<>());
 				tariffRepo.addSpecification(tempTariff);
 				tariffCharges.put(tempTariff,0d);
 				brokerContext.sendMessage(tempTariff);
-			}else {
-				System.exit(1);
 			}
 	  }
 	  
@@ -1427,7 +1565,7 @@ implements PortfolioManager, Initializable, Activatable
   }
   // Creates initial tariffs for the main power types. These are simple
   // fixed-rate two-part tariffs that give the broker a fixed margin.
-  @SuppressWarnings("unused")
+/*
 private void createInitialTariffsSampleBroker ()
   {
     // remember that market prices are per mwh, but tariffs are by kwh
@@ -1471,9 +1609,9 @@ private void createInitialTariffsSampleBroker ()
       brokerContext.sendMessage(spec);
     }
   }
- 
+
   // Checks to see whether our tariffs need fine-tuning
-@SuppressWarnings("unused")
+
 private void improveTariffs()
   {
     // quick magic-number hack to inject a balancing order
@@ -1552,7 +1690,7 @@ private void improveTariffs()
       }
     }
   }
-
+*/ 
   
   // ------------- test-support methods ----------------
   double getUsageForCustomer (CustomerInfo customer,

@@ -46,11 +46,11 @@ public class Parameters {
 	  //Mutation Constants
 	  public static double Ebp = 10;
 	  public static double Ep = 0.15;
-	  public static int timeslotMS = 5000;
+	  public static int timeslotMS = 3000;
 	  public static int Ecl = timeslotMS* (4* reevaluationCons/5)*10000;
 	  public static double Ereg = 0.05;
 	  
-//	  public static double MIN_RATE_VALUE = -0.1; 
+	  public static double MIN_RATE_VALUE = -0.08; 
 	
       //wholesale module Parameters
 	  public static int MAX_ITERATIONS = 1000;

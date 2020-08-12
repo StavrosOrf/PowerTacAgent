@@ -15,6 +15,7 @@
  */
 package org.powertac.samplebroker.interfaces;
 
+import org.powertac.common.CapacityTransaction;
 import org.powertac.common.Competition;
 
 /**
@@ -50,6 +51,9 @@ public interface MarketManager
 
   public double[] getNetUsagePredictorWe();
   public double[] getNetUsagePredictorWd();
+  
+  public CapacityTransaction[] getCapacityFees(); 
+  public void resetCapacityFees();
   
   
   

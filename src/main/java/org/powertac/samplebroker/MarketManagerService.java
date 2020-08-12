@@ -124,6 +124,8 @@ implements MarketManager, Initializable, Activatable
   private int tradesPassedWe[] = new int[24];
   private int tradesPassedWd[] = new int[24];
   
+  private CapacityTransaction[] capacityFees = new CapacityTransaction[3];
+  
   private double netUsagePredictorWe[] = new double[24];
   private double netUsagePredictorWd[] = new double[24];
   private double netUsageWe[] = new double[24];
@@ -270,6 +272,13 @@ implements MarketManager, Initializable, Activatable
    */
   public synchronized void handleMessage (CapacityTransaction dt)
   {
+	for (int j = 0; j < capacityFees.length; j++) {
+		if(capacityFees[j] != null) {
+			capacityFees[j] = dt;
+			break;
+		}
+	}
+
 	System.out.println("=====================================================================================");
 //	System.out.println("ts: " + dt.getPeakTimeslot() + "  " + dt.getBroker().getUsername()
 //			+ "  " + dt.getKWh() + "  " + dt.getThreshold() + "  " + dt.getCharge() );
@@ -309,7 +318,7 @@ implements MarketManager, Initializable, Activatable
       }
     }
     meanMarketPrice = totalValue / totalUsage;
-    System.out.println("Calculated bootstrap data");
+//    System.out.println("Calculated bootstrap data");
   }
 
   /**
@@ -509,7 +518,7 @@ implements MarketManager, Initializable, Activatable
     //TODO check if needed is negative or positive
     if(neededMWh < 0) {
         log.info("new order for " + neededMWh + " at " + limitPrice + " in timeslot " + timeslotBidding);
-        Order order = new Order(broker.getBroker(), timeslotBidding, neededMWh, limitPrice);
+        Order order = new Order(broker.getBroker(), timeslotBidding, neededMWh, limitPrice + 10);
         
         lastOrder.put(timeslotBidding, order);
         broker.sendMessage(order);
@@ -896,6 +905,16 @@ public double[] getNetUsagePredictorWe() {
 
 public double[] getNetUsagePredictorWd() {
 	return netUsagePredictorWd;
+}
+
+public CapacityTransaction[] getCapacityFees() {
+	return capacityFees;
+}
+
+public void resetCapacityFees() {
+	for (int i = 0; i < 3; i++) {
+		capacityFees[i] = null;
+	}
 }
 
   

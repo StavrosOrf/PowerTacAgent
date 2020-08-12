@@ -103,7 +103,7 @@ implements Initializable,ContextManager
   {
     // TODO - use this data
 	  // it reports usage for PREVIOUS timeslot => ts = ts -1
-//	  System.out.printf("DR: Timeslot %d Production: %.2f  Consumption:  %.2f  Total: %.2f \n",
+//	  System.out.printf("DR: Timeslot %d Production: %.2f  Consumption:  %.2f  Demand: %.2f \n",
 //			  				dr.getTimeslot(), dr.getTotalProduction(),dr.getTotalConsumption(),dr.getTotalConsumption()-dr.getTotalProduction());
 	  report = dr;
 	  lastActualEnergy = dr.getTotalConsumption();
