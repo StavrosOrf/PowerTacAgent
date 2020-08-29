@@ -54,6 +54,7 @@ import org.powertac.samplebroker.interfaces.ContextManager;
 import org.powertac.samplebroker.interfaces.Initializable;
 import org.powertac.samplebroker.interfaces.MarketManager;
 import org.powertac.samplebroker.interfaces.PortfolioManager;
+import org.powertac.samplebroker.utility.ExcelWriter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -142,7 +143,7 @@ implements PortfolioManager, Initializable, Activatable
   private boolean enableProduction = true;
   private boolean enableInterruptible = true;
   
-  private boolean enableGConsumption = false;
+  private boolean enableGConsumption = true;
   private boolean enableGProduction = true;
   private boolean enableGInterruptible = false;
   private boolean enableGStorage = false;
@@ -153,6 +154,8 @@ implements PortfolioManager, Initializable, Activatable
   private double[] peakDemand = new double[3];
   private int[] peakDemandTS = new int[3];
   private double gamaParameter = 1.25;
+  
+  public ExcelWriter excelWriter;
     
   // These customer records need to be notified on activation
   private List<CustomerRecord> notifyOnActivation = new ArrayList<>();
@@ -200,6 +203,8 @@ implements PortfolioManager, Initializable, Activatable
     	bootsrapUsage[i] = 0;
     
     notifyOnActivation.clear();
+    
+    
   }
   
   // -------------- data access ------------------
@@ -455,8 +460,6 @@ implements PortfolioManager, Initializable, Activatable
     else if (TariffTransaction.Type.PERIODIC == txType) {
     	log.info("TTX Periodic: " +ttx.getCharge() + " , " + ttx.getId() 
         + " , " + ttx.getBroker() + " , " + ttx.getTariffSpec().getPowerType().getGenericType());
-//    	System.out.println("TTX Periodic: " +ttx.getCharge() + " , " + ttx.getTariffSpec().getId() 
-//        + " , " + ttx.getBroker() + " , " + ttx.getTariffSpec().getPowerType().getGenericType());
         record.produceConsume(ttx.getKWh(), ttx.getPostedTime()); 
         double currentCharge = tariffCharges.get(ttx.getTariffSpec());
         tariffCharges.put(ttx.getTariffSpec(),currentCharge+ ttx.getCharge());
@@ -464,6 +467,8 @@ implements PortfolioManager, Initializable, Activatable
     else if (TariffTransaction.Type.REVOKE == txType) {
     	log.info("TTX Revoke: " +ttx.getCharge() + " , " + ttx.getId() 
         + " , " + ttx.getBroker() + " , " + ttx.getTariffSpec().getPowerType().getGenericType());
+//    	System.out.println("TTX Revoke: " +ttx.getCharge() + " , " + ttx.getTariffSpec().getId() 
+//      + " , " + ttx.getBroker() + " , " + ttx.getTariffSpec().getPowerType().getGenericType());
         record.produceConsume(ttx.getKWh(), ttx.getPostedTime()); 
         double currentCharge = tariffCharges.get(ttx.getTariffSpec());
         tariffCharges.put(ttx.getTariffSpec(),currentCharge+ ttx.getCharge());
@@ -554,7 +559,7 @@ implements PortfolioManager, Initializable, Activatable
 	  
 	  ArrayList<TariffSpecification> t ;
 	  TariffSpecification tempTariff ;
-//	  System.out.printf("Energy Usage: %.2f KWh   ts %d \n", collectUsage(timeslotIndex),timeslotIndex);
+//	  System.out.printf("Energy Usage: %.2f KWh   ts %d \n", collectUsage(timeslotIndex-1),timeslotIndex-1);
 	  
 	  //Check if we need to update our tariffs and Print stats
       if (customerSubscriptions.size() == 0) {
@@ -798,6 +803,7 @@ implements PortfolioManager, Initializable, Activatable
   }
   //calculate capacity fees
   private void calcCapacityFees(int timeslotIndex) {
+	  double realThreshold = 0;
 	  if(timeslotIndex == 361) {
 		  for(int i = 0; i<336;i++) {
 			  totalDemand[i] = -bootsrapUsage[i];
@@ -836,8 +842,6 @@ implements PortfolioManager, Initializable, Activatable
 		  totalDemandLength ++;
 	  }
 	  
-
-	  
 	  if((timeslotIndex-360) % 168 == 0 && timeslotIndex != 360) {
 		  double[] d = new double[2];
 		  d = calcDemandMeanDeviation();
@@ -850,21 +854,39 @@ implements PortfolioManager, Initializable, Activatable
 					  d[1] = 13000;
 				  gamaParameter = ( threshold - d[0])/d[1];
 			  }
-
 		  }
+		  if(marketManager.getCapacityFees()[0] != null)
+			  realThreshold = marketManager.getCapacityFees()[0].getThreshold();
 		  
 		  threshold = d[0] + gamaParameter*d[1];
 		  double fees = 0;
-		  System.out.printf("Mean: %.2f \t Deviation: %.2f \t Threshold: %.2f\n",d[0],d[1],threshold);		
+		  System.out.printf("Mean: %.2f \t Deviation: %.2f \t Threshold Prediction: %.2f\n",d[0],d[1],threshold);		
 		 
+		  double mineEnergy = 1 , total = 0;;
 		  for(int i = 0; i<3;i++) {
-			  System.out.printf("Peak: %.2f  \tTS:%4d ",peakDemand[i],peakDemandTS[i]);
-			  if(peakDemand[i] > threshold - 500) {
-				  System.out.println(" Fees: " + 1000*(peakDemand[i]-threshold));
-				  fees += 1000*(peakDemand[i]-threshold);
+			  mineEnergy = 1;
+			  System.out.printf("Peak: %.2f KWh \t Diff: %.2f KWh \tTS:%4d ",peakDemand[i],peakDemand[i]-realThreshold,peakDemandTS[i]);
+			  if(peakDemand[i] > realThreshold) {
+				  for(int j = 0 ;j<3;j++) {
+					  if(marketManager.getCapacityFees()[j] != null) { 					
+						  if(marketManager.getCapacityFees()[j].getPeakTimeslot() == peakDemandTS[i]) {
+							  mineEnergy = marketManager.getCapacityFees()[j].getKWh();
+							  break;
+						  }
+					  }
+//					  else {
+//						  mineEnergy = 0;
+//					  }
+				  }
+				  if(mineEnergy == 1)
+					  break;
+				  //total energy of all brokers at that timeslot
+				  total =  (collectUsage(peakDemandTS[i])*(peakDemand[i]-realThreshold))/mineEnergy;
+				  System.out.printf("\tFees: % 10.2f € Total Energy of all brokers: % .2f \n" , 18*(peakDemand[i]-realThreshold),total);
+				  fees += 18*(peakDemand[i]-realThreshold);
 			  }			  
 		  }
-		  System.out.printf("Total capacity fees: %.2f \t Threshold: %.2f\n",fees,threshold);
+		  System.out.printf("Total capacity fees: %.2f \t Threshold: %.2f\n",fees,realThreshold);
 	  }
 	  
 
@@ -1102,7 +1124,7 @@ implements PortfolioManager, Initializable, Activatable
 		  temp = -6.5;
 	  }
 	  temp = temp * (1 - ep )+  (temp * (1 +  ep ) - temp * (1 - ep ))*rnd.nextDouble();
-	  spec.withPeriodicPayment(temp);
+	  spec.withPeriodicPayment(0);
 	  	  
 	  //Mutating signup payment
 	  temp = spec.getSignupPayment();
@@ -1306,6 +1328,7 @@ implements PortfolioManager, Initializable, Activatable
 	  
 //	  if(isLateGame)
 //		  temp += Parameters.LATE_GAME_ADDEED_PRICE;
+	  temp = -0.16;
 	  
 	  temp = temp * (1 - ep )+  (temp * (1 +  ep ) - temp * (1 - ep ))*rnd.nextDouble();
 	

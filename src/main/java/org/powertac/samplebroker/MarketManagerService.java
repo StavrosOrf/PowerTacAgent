@@ -52,6 +52,7 @@ import org.powertac.samplebroker.interfaces.MarketManager;
 import org.powertac.samplebroker.interfaces.PortfolioManager;
 import org.powertac.samplebroker.utility.Node;
 import org.powertac.samplebroker.utility.EnergyPredictor;
+import org.powertac.samplebroker.utility.ExcelWriter;
 import org.powertac.samplebroker.utility.TeePrintStream;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -82,6 +83,7 @@ implements MarketManager, Initializable, Activatable
   private ContextManager contextManager;
   
   private EnergyPredictor energyPredictor;
+  private ExcelWriter excelWriter;
 
   // ------------ Configurable parameters --------------
   // max and min offer prices. Max means "sure to trade"
@@ -211,6 +213,8 @@ implements MarketManager, Initializable, Activatable
 	    FileOutputStream file = new FileOutputStream("..\\..\\logs\\" + comp.getName() + ".output.txt");
 	    TeePrintStream tee = new TeePrintStream(file, System.out);
 	    System.setOut(tee);
+	    excelWriter = new ExcelWriter(comp.getName());
+	    
 	} catch (FileNotFoundException e) {
 		// TODO Auto-generated catch block
 		System.out.println("error writing to file");
@@ -273,7 +277,7 @@ implements MarketManager, Initializable, Activatable
   public synchronized void handleMessage (CapacityTransaction dt)
   {
 	for (int j = 0; j < capacityFees.length; j++) {
-		if(capacityFees[j] != null) {
+		if(capacityFees[j] == null) {
 			capacityFees[j] = dt;
 			break;
 		}
@@ -375,13 +379,22 @@ implements MarketManager, Initializable, Activatable
 		  
 		  pr = energyPredictor.getKWhPredictor(day, hour,
 				new WeatherReport(ts + f.getForecastTime(), f.getTemperature(), f.getWindSpeed(), f.getWindDirection(), f.getCloudCover()));
-		  
+		
+//		  if(f.getForecastTime() == 1 ) {
+//			  excelWriter.writeCell(forecast.getTimeslotIndex() + 1 - 360, 1, pr);
+//		  }
+		  excelWriter.writeCell(forecast.getTimeslotIndex() + f.getForecastTime() - 360 , f.getForecastTime() + 2, pr,false);
 		  if(day < 6) {
 			  netUsagePredictorWd[hour] = pr;
 		  }else {
 			  netUsagePredictorWe[hour] = pr;
 		  }
+		  if( (timeslotRepo.currentSerialNumber()-4-360) % Parameters.reevaluationCons == 0) {
+			  System.out.printf("Prediction| TS: %4d Energy: %.2f KWh ",ts + f.getForecastTime(),pr);
+		  }
+		  
 	  }
+//	  System.out.println("+");
   }
 
   /**
@@ -392,7 +405,7 @@ implements MarketManager, Initializable, Activatable
 	  int hour = getTimeSlotHour( report.getTimeslotIndex());
 	  int day = getTimeSlotDay( report.getTimeslotIndex());
 	  double pr = energyPredictor.getKWhPredictor(day, hour, report);
-	  
+
 	  if(day < 6) {
 		  netUsagePredictorWd[hour] = pr;
 	  }else {
@@ -403,18 +416,28 @@ implements MarketManager, Initializable, Activatable
 		  prevWeatherReport = report;
 		  return;
 	  }
-		  
+	  if((report.getTimeslotIndex() - 360) % 25 == 0 )
+		  excelWriter.writeCell(report.getTimeslotIndex()-360,2,pr,true);
+	  else
+		  excelWriter.writeCell(report.getTimeslotIndex()-360,2,pr,false);
+	  
 	  hour = getTimeSlotHour(prevWeatherReport.getTimeslotIndex());
 	  day = getTimeSlotDay(prevWeatherReport.getTimeslotIndex());
 	  DistributionReport dr = contextManager.getReport();
 	  pr = energyPredictor.getKWhPredictor(day, hour, prevWeatherReport);
 	  totalPredictedEnergyKWH += pr;
 	  
+	  excelWriter.writeCell(dr.getTimeslot()-360,0,dr.getTimeslot(),false);
+	  excelWriter.writeCell(dr.getTimeslot()-360,1,dr.getTotalConsumption()-dr.getTotalProduction(),false);
 	  if(dr != null) {
-//		  System.out.printf("Energy Prediction: Timeslot %d Energy( %.2f ) |Actual Energy timeslot %d ( %.2f )  | diff: %.2f %% \n",
-//				  prevWeatherReport.getTimeslotIndex(),pr,
-//		  			dr.getTimeslot(),dr.getTotalConsumption(),(dr.getTotalConsumption()-pr)*100/dr.getTotalConsumption());  
+		  System.out.printf("Energy Prediction: Timeslot %d Energy( %.2f ) |Actual Energy Consumption timeslot %d "
+		  		+ "( %.2f ) Actual Demand %.2f | diff: %.2f %% \n",
+				  prevWeatherReport.getTimeslotIndex(),pr,
+		  			dr.getTimeslot(),dr.getTotalConsumption(),dr.getTotalConsumption()-dr.getTotalProduction()
+		  			,(dr.getTotalConsumption()-pr)*100/dr.getTotalConsumption());  
 	  }
+	  
+	  excelWriter.writeCell(dr.getTimeslot()-360,28,dr.getTotalConsumption(),false);
 //	  System.out.println("123");
 	  prevWeatherReport = report;
   }
@@ -518,7 +541,7 @@ implements MarketManager, Initializable, Activatable
     //TODO check if needed is negative or positive
     if(neededMWh < 0) {
         log.info("new order for " + neededMWh + " at " + limitPrice + " in timeslot " + timeslotBidding);
-        Order order = new Order(broker.getBroker(), timeslotBidding, neededMWh, limitPrice + 10);
+        Order order = new Order(broker.getBroker(), timeslotBidding, neededMWh, limitPrice );
         
         lastOrder.put(timeslotBidding, order);
         broker.sendMessage(order);
