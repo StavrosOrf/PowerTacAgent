@@ -24,15 +24,15 @@ public class ExcelWriter {
         this.fileName = fileName;
         Row rowC = sheet.createRow(0);
         Cell cellC = rowC.createCell(2);
-		cellC.setCellValue("Predicted Demand KWh same day");
+		cellC.setCellValue("Predicted Demand KWh same hour");
 		cellC = rowC.createCell(3);
-		cellC.setCellValue("1 day before");
+		cellC.setCellValue("1 hours before");
 		cellC = rowC.createCell(1);
 		cellC.setCellValue("Actual Demand KWh");
 		
 		for(int i = 0; i< 23; i++) {
 			cellC = rowC.createCell(i+4);
-			cellC.setCellValue((i+2)+" days before prediction");
+			cellC.setCellValue((i+2)+" hours before prediction");
 		}
 		
 		cellC = rowC.createCell(28);

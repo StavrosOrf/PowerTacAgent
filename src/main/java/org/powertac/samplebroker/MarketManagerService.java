@@ -430,11 +430,11 @@ implements MarketManager, Initializable, Activatable
 	  excelWriter.writeCell(dr.getTimeslot()-360,0,dr.getTimeslot(),false);
 	  excelWriter.writeCell(dr.getTimeslot()-360,1,dr.getTotalConsumption()-dr.getTotalProduction(),false);
 	  if(dr != null) {
-		  System.out.printf("Energy Prediction: Timeslot %d Energy( %.2f ) |Actual Energy Consumption timeslot %d "
-		  		+ "( %.2f ) Actual Demand %.2f | diff: %.2f %% \n",
-				  prevWeatherReport.getTimeslotIndex(),pr,
-		  			dr.getTimeslot(),dr.getTotalConsumption(),dr.getTotalConsumption()-dr.getTotalProduction()
-		  			,(dr.getTotalConsumption()-pr)*100/dr.getTotalConsumption());  
+//		  System.out.printf("Energy Prediction: Timeslot %d Energy( %.2f ) |Actual Energy Consumption timeslot %d "
+//		  		+ "( %.2f ) Actual Demand %.2f | diff: %.2f %% \n",
+//				  prevWeatherReport.getTimeslotIndex(),pr,
+//		  			dr.getTimeslot(),dr.getTotalConsumption(),dr.getTotalConsumption()-dr.getTotalProduction()
+//		  			,(dr.getTotalConsumption()-pr)*100/dr.getTotalConsumption());  
 	  }
 	  
 	  excelWriter.writeCell(dr.getTimeslot()-360,28,dr.getTotalConsumption(),false);

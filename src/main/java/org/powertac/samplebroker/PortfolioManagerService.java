@@ -26,7 +26,6 @@ import java.util.Random;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
 import org.joda.time.Instant;
-import org.nd4j.nativeblas.Nd4jCpu.thresholdedrelu;
 import org.powertac.common.Broker;
 import org.powertac.common.Competition;
 import org.powertac.common.CustomerInfo;
@@ -144,9 +143,9 @@ implements PortfolioManager, Initializable, Activatable
   private boolean enableInterruptible = true;
   
   private boolean enableGConsumption = true;
-  private boolean enableGProduction = true;
+  private boolean enableGProduction = false;
   private boolean enableGInterruptible = false;
-  private boolean enableGStorage = false;
+  private boolean enableGStorage = true;
   
   private double[] bootsrapUsage = new double[360];
   private double[] totalDemand = new double[2500];
@@ -154,6 +153,8 @@ implements PortfolioManager, Initializable, Activatable
   private double[] peakDemand = new double[3];
   private int[] peakDemandTS = new int[3];
   private double gamaParameter = 1.25;
+  
+  private double LowerBound = Parameters.LowerBoundStatic;
   
   public ExcelWriter excelWriter;
     
@@ -559,7 +560,7 @@ implements PortfolioManager, Initializable, Activatable
 	  
 	  ArrayList<TariffSpecification> t ;
 	  TariffSpecification tempTariff ;
-//	  System.out.printf("Energy Usage: %.2f KWh   ts %d \n", collectUsage(timeslotIndex-1),timeslotIndex-1);
+	  System.out.printf("Energy Usage: %.2f KWh   ts %d \n", collectUsage(timeslotIndex-1),timeslotIndex-1);
 	  
 	  //Check if we need to update our tariffs and Print stats
       if (customerSubscriptions.size() == 0) {
@@ -704,6 +705,13 @@ implements PortfolioManager, Initializable, Activatable
 //    				continue; 			
     			
     			if(spec.getPowerType() == PowerType.CONSUMPTION  && enableGConsumption) {
+
+    				if(calculatePercenatge(consumptionCustomers,consumptionCustomersPrev) > 70 
+    						&& Math.abs(findBestCompetitiveTariff(spec.getPowerType()) - calculateAvgRate(spec, false)) <0.007 
+    						&& LowerBound  > calculateAvgRate(spec, false)) {
+    					continue;
+    				}
+    				
     				tempTariff = crossoverTariffs(t);
     				tempTariff = mutateConsumptionTariff(tempTariff);   				
         			tariffCharges.remove(spec);
@@ -762,15 +770,15 @@ implements PortfolioManager, Initializable, Activatable
     			}
     		}
     		System.out.println("Other Tariffs-----------");
-    		int cc = 0;
+//    		int cc = 0;
     		for (PowerType pt : competingTariffs.keySet()) {
     			for (TariffSpecification spec : competingTariffs.get(pt)) {
-        			if(pt == PowerType.CONSUMPTION && spec.getBroker().getUsername().equals("AgentUDE17")) {
-        				cc ++;
-        				if(cc > 2) {
-        					continue;
-        				}
-        			}
+//        			if(pt == PowerType.CONSUMPTION && spec.getBroker().getUsername().equals("AgentUDE17")) {
+//        				cc ++;
+//        				if(cc > 2) {
+//        					continue;
+//        				}
+//        			}
     				printTariff(spec);      			
         		}
     		}
@@ -801,6 +809,10 @@ implements PortfolioManager, Initializable, Activatable
       
       System.out.println("-");
   }
+  private double calculatePercenatge(double total,double current) {
+	  	  return (100*current)/total;
+  }
+  
   //calculate capacity fees
   private void calcCapacityFees(int timeslotIndex) {
 	  double realThreshold = 0;
@@ -862,7 +874,7 @@ implements PortfolioManager, Initializable, Activatable
 		  double fees = 0;
 		  System.out.printf("Mean: %.2f \t Deviation: %.2f \t Threshold Prediction: %.2f\n",d[0],d[1],threshold);		
 		 
-		  double mineEnergy = 1 , total = 0;;
+		  double mineEnergy = 1 , total = 0,totalFeesMine = 0;
 		  for(int i = 0; i<3;i++) {
 			  mineEnergy = 1;
 			  System.out.printf("Peak: %.2f KWh \t Diff: %.2f KWh \tTS:%4d ",peakDemand[i],peakDemand[i]-realThreshold,peakDemandTS[i]);
@@ -871,6 +883,7 @@ implements PortfolioManager, Initializable, Activatable
 					  if(marketManager.getCapacityFees()[j] != null) { 					
 						  if(marketManager.getCapacityFees()[j].getPeakTimeslot() == peakDemandTS[i]) {
 							  mineEnergy = marketManager.getCapacityFees()[j].getKWh();
+							  totalFeesMine = marketManager.getCapacityFees()[j].getCharge();
 							  break;
 						  }
 					  }
@@ -878,8 +891,10 @@ implements PortfolioManager, Initializable, Activatable
 //						  mineEnergy = 0;
 //					  }
 				  }
-				  if(mineEnergy == 1)
+				  if(mineEnergy == 1) {
+					  System.out.println("");
 					  break;
+				  }  
 				  //total energy of all brokers at that timeslot
 				  total =  (collectUsage(peakDemandTS[i])*(peakDemand[i]-realThreshold))/mineEnergy;
 				  System.out.printf("\tFees: % 10.2f € Total Energy of all brokers: % .2f \n" , 18*(peakDemand[i]-realThreshold),total);
@@ -887,6 +902,14 @@ implements PortfolioManager, Initializable, Activatable
 			  }			  
 		  }
 		  System.out.printf("Total capacity fees: %.2f \t Threshold: %.2f\n",fees,realThreshold);
+		  
+		  if(totalFeesMine < Parameters.LowerBoundChangerFees) {
+			  LowerBound += 0.001; ;
+		  }else {
+			  LowerBound = Parameters.LowerBoundStatic;
+		  }
+		  System.out.println("New Lower Bound: " + LowerBound);
+		  
 	  }
 	  
 
@@ -1278,7 +1301,7 @@ implements PortfolioManager, Initializable, Activatable
 	  System.out.println("Before Mutation---");
 	  printTariff(spec);
 	  double ep = Parameters.Ep;
-	  double ebp = Parameters.Ebp;
+	  double ebp = Parameters.Ebp/2;
 //	  int ecl = Parameters.Ecl;
 	  double temp ;
   	  
@@ -1296,7 +1319,9 @@ implements PortfolioManager, Initializable, Activatable
 		  temp = -ebp;
 	  }
 	  temp = temp + ebp +  (temp -  ebp  - (temp  + ebp ))*rnd.nextDouble();
-//	  spec.withEarlyWithdrawPayment(temp);
+	  if(temp > 0 )
+		  temp = -temp -1;
+	  spec.withEarlyWithdrawPayment(temp);
 	  
 	  //Mutating contract length
 //	  int tmp = (int)spec.getMinDuration();
@@ -1307,7 +1332,7 @@ implements PortfolioManager, Initializable, Activatable
 //		  ecl = tmp/2;
 //	  }
 //	  tmp = tmp - ecl + rnd.nextInt(2*ecl);
-//	  spec.withMinDuration(ecl);
+	  spec.withMinDuration(Parameters.timeslotMS * (Parameters.reevaluationCons - 2));
 	  
 	  //Mutating avg rate value
 	  double a1 = 0;
@@ -1328,10 +1353,32 @@ implements PortfolioManager, Initializable, Activatable
 	  
 //	  if(isLateGame)
 //		  temp += Parameters.LATE_GAME_ADDEED_PRICE;
-	  temp = -0.16;
 	  
-	  temp = temp * (1 - ep )+  (temp * (1 +  ep ) - temp * (1 - ep ))*rnd.nextDouble();
-	
+	  temp = findBestCompetitiveTariff(spec.getPowerType());
+	  ep = Parameters.LowerEp;
+	  double roll = rnd.nextDouble();
+	  boolean flag = false;
+	  System.out.println("Current minimum comp tariff avg: "+ temp);
+	  if(temp == -1 ) { // || timeslotRepo.currentSerialNumber() < 370) { 
+		  temp = 1.2*LowerBound; 
+	  }else if( temp > LowerBound && roll > Parameters.LowerBoundRollChance) {
+		  temp = LowerBound; 
+	  }else if( temp > LowerBound && roll < Parameters.LowerBoundRollChance) {
+		  flag = true;
+	  }
+
+//	  temp = temp * (1 - ep )+  (temp * (1 +  ep ) - temp * (1 - ep ))*rnd.nextDouble();
+	  
+	  roll = rnd.nextDouble();
+
+	  //always mutate down if avg is bigger than bound
+	  if(roll < 0.5 || temp < LowerBound || flag) {
+		  temp = temp + rnd.nextDouble()*ep;
+	  }else {
+		  temp = temp - rnd.nextDouble()*ep;
+	  }
+	  
+	  
 	  spec = produceTOURates(spec,temp,0);
 	  
 	  spec.withPeriodicPayment(0);
@@ -1396,6 +1443,7 @@ implements PortfolioManager, Initializable, Activatable
 		  temp = -0.1;
 		  maxC = 0.4;
 	  }
+	  
 	  temp = temp * (1 - ep )+  (temp * (1 +  ep ) - temp * (1 - ep ))*rnd.nextDouble();
 	  maxC = maxC * (1 - ep )+  (maxC * (1 +  ep ) - maxC * (1 - ep ))*rnd.nextDouble();
 	  	  
@@ -1405,6 +1453,34 @@ implements PortfolioManager, Initializable, Activatable
 	  printTariff(spec);
 	  System.out.println("After Mutation---");
 	  return spec;
+  }
+  
+  private double findBestCompetitiveTariff(PowerType pt) {
+	  
+	  double min = -10000,tmp = 0;
+	  TariffSpecification minTariff = null;
+	  for(TariffSpecification t : competingTariffs.get(pt)) {
+		  //TODO check if tariff is valid()
+		  if(t.getEarlyWithdrawPayment() + t.getSignupPayment() > 0 || t.getEarlyWithdrawPayment() + t.getSignupPayment() < -30) {
+			  System.out.println("Bait Tariff + " + t.getId());
+			  continue;
+		  }
+		  tmp = calculateAvgRate(t,false);
+		  
+		  if(t.getPeriodicPayment() < 5 *tmp ) {
+			  System.out.println("Bait Tariff + " + t.getId());
+			  continue;			  			  
+		  }
+
+		  if(tmp > min) {
+			  min = tmp;
+			  minTariff = t;
+		  }
+	  }
+	  if(minTariff == null)
+		  return -1;
+	  else
+		  return min;
   }
   
   public void printTariff(TariffSpecification t) {
@@ -1530,6 +1606,8 @@ implements PortfolioManager, Initializable, Activatable
     	        tariffCharges.put(tempTariff,0d);
     	        brokerContext.sendMessage(tempTariff); 	        
 			}else if(pt.isStorage() && enableGStorage){
+				if(tempTariff.getPowerType() != PowerType.THERMAL_STORAGE_CONSUMPTION)
+					continue;
 				tempTariff = mutateStorageTariff(tempTariff);   				
 				// DELETE from db selected tariffs
 				customerSubscriptions.put(tempTariff, new LinkedHashMap<>());

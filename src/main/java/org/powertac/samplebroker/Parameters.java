@@ -26,8 +26,6 @@ public class Parameters {
 	
 	  public static String MyName = "mc0";
 	  
-	  
-	
 	  //retail module Parameters	
 	  public static int reevaluationCons = 30;
 	  public static int reevaluationStorage = 2*reevaluationCons;
@@ -46,6 +44,10 @@ public class Parameters {
 	  //Mutation Constants
 	  public static double Ebp = 10;
 	  public static double Ep = 0.15;
+	  public static double LowerEp = 0.008;
+	  public static double LowerBoundChangerFees = 50000;
+	  public static double LowerBoundStatic = - 0.015;
+	  public static double LowerBoundRollChance = 0.33;
 	  public static int timeslotMS = 3000;
 	  public static int Ecl = timeslotMS* (4* reevaluationCons/5)*10000;
 	  public static double Ereg = 0.05;
