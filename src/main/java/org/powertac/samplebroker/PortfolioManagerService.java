@@ -578,6 +578,18 @@ implements PortfolioManager, Initializable, Activatable
     	 
     	 if(timer == Parameters.reevaluationCons) {
 //    		calculateWeights();
+    		
+    		 
+    		double[] d = new double[2];
+   		  	d = calcDemandMeanDeviation();
+    		System.out.print("Current| Threshold: "+  (d[0] + gamaParameter*d[1]) +"\t Peaks| ");
+    		for(int p = 0; p < 3 ; p++) { 
+    			if(peakDemand[p] != 0) {
+    				System.out.printf("\t Ts: %d  %.2f KWh",peakDemandTS[p],peakDemand[p]); 
+    			}    			
+    		}
+    		 System.out.println("");
+    		 
     		calculateWeightsPredictor();
     		
     		if(timer2 == Parameters.reevaluationInterruptible) {
@@ -713,7 +725,7 @@ implements PortfolioManager, Initializable, Activatable
     				}
     				
     				tempTariff = crossoverTariffs(t);
-    				tempTariff = mutateConsumptionTariff(tempTariff);   				
+    				tempTariff = mutateConsumptionTariff(tempTariff,false);   				
         			tariffCharges.remove(spec);
     				
         			//commit the new tariff
@@ -815,6 +827,8 @@ implements PortfolioManager, Initializable, Activatable
   
   //calculate capacity fees
   private void calcCapacityFees(int timeslotIndex) {
+	  
+	  
 	  double realThreshold = 0;
 	  if(timeslotIndex == 361) {
 		  for(int i = 0; i<336;i++) {
@@ -883,7 +897,7 @@ implements PortfolioManager, Initializable, Activatable
 					  if(marketManager.getCapacityFees()[j] != null) { 					
 						  if(marketManager.getCapacityFees()[j].getPeakTimeslot() == peakDemandTS[i]) {
 							  mineEnergy = marketManager.getCapacityFees()[j].getKWh();
-							  totalFeesMine = marketManager.getCapacityFees()[j].getCharge();
+							  totalFeesMine += marketManager.getCapacityFees()[j].getCharge();
 							  break;
 						  }
 					  }
@@ -901,12 +915,17 @@ implements PortfolioManager, Initializable, Activatable
 				  fees += 18*(peakDemand[i]-realThreshold);
 			  }			  
 		  }
-		  System.out.printf("Total capacity fees: %.2f \t Threshold: %.2f\n",fees,realThreshold);
+		  System.out.printf("Total capacity fees: %.2f € \t Total Mine: %.2f €\t Threshold: %.2f\n",fees,totalFeesMine,realThreshold);
 		  
-		  if(totalFeesMine < Parameters.LowerBoundChangerFees) {
+		  if(Math.abs(totalFeesMine) < Parameters.LowerBoundChangerFees) {
 			  LowerBound += 0.001; ;
 		  }else {
-			  LowerBound = Parameters.LowerBoundStatic;
+			  LowerBound -= 0.001;
+			  if(LowerBound < Parameters.LowerBoundStatic) {
+				  LowerBound = Parameters.LowerBoundStatic; 
+			  }
+			  
+//			  LowerBound = Parameters.LowerBoundStatic;
 		  }
 		  System.out.println("New Lower Bound: " + LowerBound);
 		  
@@ -1296,7 +1315,7 @@ implements PortfolioManager, Initializable, Activatable
 	  return spec;
   }
   
-  private TariffSpecification mutateConsumptionTariff(TariffSpecification spec) {
+  private TariffSpecification mutateConsumptionTariff(TariffSpecification spec,boolean beginning) {
 	  Random rnd = new Random();
 	  System.out.println("Before Mutation---");
 	  printTariff(spec);
@@ -1321,7 +1340,7 @@ implements PortfolioManager, Initializable, Activatable
 	  temp = temp + ebp +  (temp -  ebp  - (temp  + ebp ))*rnd.nextDouble();
 	  if(temp > 0 )
 		  temp = -temp -1;
-	  spec.withEarlyWithdrawPayment(temp);
+	  spec.withEarlyWithdrawPayment(-rnd.nextDouble()*Parameters.Ebp - 2);
 	  
 	  //Mutating contract length
 //	  int tmp = (int)spec.getMinDuration();
@@ -1332,7 +1351,8 @@ implements PortfolioManager, Initializable, Activatable
 //		  ecl = tmp/2;
 //	  }
 //	  tmp = tmp - ecl + rnd.nextInt(2*ecl);
-	  spec.withMinDuration(Parameters.timeslotMS * (Parameters.reevaluationCons - 2));
+	  spec.withMinDuration(Parameters.timeslotMS * (Parameters.reevaluationCons - 2)*100);
+//	  spec.withMinDuration(0);
 	  
 	  //Mutating avg rate value
 	  double a1 = 0;
@@ -1353,31 +1373,34 @@ implements PortfolioManager, Initializable, Activatable
 	  
 //	  if(isLateGame)
 //		  temp += Parameters.LATE_GAME_ADDEED_PRICE;
-	  
-	  temp = findBestCompetitiveTariff(spec.getPowerType());
-	  ep = Parameters.LowerEp;
-	  double roll = rnd.nextDouble();
-	  boolean flag = false;
-	  System.out.println("Current minimum comp tariff avg: "+ temp);
-	  if(temp == -1 ) { // || timeslotRepo.currentSerialNumber() < 370) { 
-		  temp = 1.2*LowerBound; 
-	  }else if( temp > LowerBound && roll > Parameters.LowerBoundRollChance) {
-		  temp = LowerBound; 
-	  }else if( temp > LowerBound && roll < Parameters.LowerBoundRollChance) {
-		  flag = true;
-	  }
+	  if(!beginning) {
 
-//	  temp = temp * (1 - ep )+  (temp * (1 +  ep ) - temp * (1 - ep ))*rnd.nextDouble();
-	  
-	  roll = rnd.nextDouble();
+		  temp = findBestCompetitiveTariff(spec.getPowerType());
+		  ep = Parameters.LowerEp;
+		  double roll = rnd.nextDouble();
+		  boolean flag = false;
+		  System.out.println("Current minimum comp tariff avg: "+ temp);
+		  if(temp == -1 ) { // || timeslotRepo.currentSerialNumber() < 370) { 
+			  temp = 1.2*LowerBound; 
+		  }else if( temp > LowerBound && roll > Parameters.LowerBoundRollChance) {
+			  temp = LowerBound; 
+		  }else if( temp > LowerBound && roll < Parameters.LowerBoundRollChance) {
+			  flag = true;
+		  }
 
-	  //always mutate down if avg is bigger than bound
-	  if(roll < 0.5 || temp < LowerBound || flag) {
-		  temp = temp + rnd.nextDouble()*ep;
+//		  temp = temp * (1 - ep )+  (temp * (1 +  ep ) - temp * (1 - ep ))*rnd.nextDouble();
+		  
+		  roll = rnd.nextDouble();
+
+		  //always mutate down if avg is bigger than bound
+		  if(roll < 0.5 || temp < LowerBound || flag) {
+			  temp = temp + rnd.nextDouble()*ep + Parameters.LowerEpOffset;
+		  }else {
+			  temp = temp - rnd.nextDouble()*ep;
+		  }
 	  }else {
-		  temp = temp - rnd.nextDouble()*ep;
+		  temp = Parameters.LowerBoundStatic - rnd.nextDouble()*Parameters.LowerEp; 
 	  }
-	  
 	  
 	  spec = produceTOURates(spec,temp,0);
 	  
@@ -1598,7 +1621,7 @@ implements PortfolioManager, Initializable, Activatable
 			
 				   			
 			if( pt == PowerType.CONSUMPTION && enableGConsumption) {
-				tempTariff = mutateConsumptionTariff(tempTariff);   				
+				tempTariff = mutateConsumptionTariff(tempTariff,true);   				
     			// TODO DELETE from db selected tariffs
     			//commit the new tariff
 			    customerSubscriptions.put(tempTariff, new LinkedHashMap<>());

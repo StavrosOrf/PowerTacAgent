@@ -389,9 +389,9 @@ implements MarketManager, Initializable, Activatable
 		  }else {
 			  netUsagePredictorWe[hour] = pr;
 		  }
-		  if( (timeslotRepo.currentSerialNumber()-4-360) % Parameters.reevaluationCons == 0) {
-			  System.out.printf("Prediction| TS: %4d Energy: %.2f KWh ",ts + f.getForecastTime(),pr);
-		  }
+//		  if( (timeslotRepo.currentSerialNumber()-4-360) % Parameters.reevaluationCons == 0) {
+//			  System.out.printf("Prediction| TS: %4d Energy: %.2f KWh ",ts + f.getForecastTime(),pr);
+//		  }
 		  
 	  }
 //	  System.out.println("+");
@@ -467,10 +467,10 @@ implements MarketManager, Initializable, Activatable
 	updateUsage(portfolioManager.collectUsage(timeslotIndex), timeslotIndex); 
 	double neededKWh = 0.0;
 	
-	if(timeslotIndex % Parameters.reevaluationCons == 0) {
-		System.out.printf("Current total deviation:%.2f %% \n",
-				(contextManager.totalActualEnergy()-totalPredictedEnergyKWH)*100/contextManager.totalActualEnergy());
-	}
+//	if(timeslotIndex % Parameters.reevaluationCons == 0) {
+//		System.out.printf("Current total deviation:%.2f %% \n",
+//				(contextManager.totalActualEnergy()-totalPredictedEnergyKWH)*100/contextManager.totalActualEnergy());
+//	}
 
     log.debug(" Current timeslot is " + timeslotRepo.currentTimeslot().getSerialNumber());
     System.out.println("\n|---------------------|  Current timeslot is " + timeslotRepo.currentTimeslot().getSerialNumber());

@@ -31,7 +31,7 @@ public class EnergyPredictor {
     public EnergyPredictor() {
     	String simpleMlp;
 		try {
-			simpleMlp = new ClassPathResource("FFN_model.h5").getFile().getPath();
+			simpleMlp = new ClassPathResource("FFN_modelnew.h5").getFile().getPath();
 	    	model = KerasModelImport.importKerasSequentialModelAndWeights(simpleMlp);	
 	    	
 		} catch (Exception e) {
@@ -44,7 +44,7 @@ public class EnergyPredictor {
 
     	String simpleMlp;
 		try {
-			simpleMlp = new ClassPathResource("FFN_model.h5").getFile().getPath();
+			simpleMlp = new ClassPathResource("LSTM_EP500_BS12.h5").getFile().getPath();
 	    	MultiLayerNetwork model = KerasModelImport.importKerasSequentialModelAndWeights(simpleMlp);	
 	    	
 	    	int inputs = 6;
