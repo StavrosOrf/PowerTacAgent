@@ -20,8 +20,7 @@ import org.deeplearning4j.nn.multilayer.MultiLayerNetwork;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.factory.Nd4j;
 import org.nd4j.linalg.io.ClassPathResource;
-
-
+import org.powertac.common.WeatherForecast;
 import org.powertac.common.WeatherReport;
 
 public class EnergyPredictor {
@@ -67,6 +66,12 @@ public class EnergyPredictor {
 		}
 
     }
+	
+	public String forecastToString(WeatherForecast f) {
+		
+		
+		return null;
+	}
     
     public double getKWhPredictor(int day,int hour,WeatherReport w) {
     	

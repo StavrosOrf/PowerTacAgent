@@ -51,6 +51,7 @@ import org.powertac.samplebroker.interfaces.Initializable;
 import org.powertac.samplebroker.interfaces.MarketManager;
 import org.powertac.samplebroker.interfaces.PortfolioManager;
 import org.powertac.samplebroker.utility.Node;
+import org.powertac.samplebroker.utility.ObjectToJson;
 import org.powertac.samplebroker.utility.EnergyPredictor;
 import org.powertac.samplebroker.utility.ExcelWriter;
 import org.powertac.samplebroker.utility.TeePrintStream;
@@ -370,6 +371,8 @@ implements MarketManager, Initializable, Activatable
    */
   public synchronized void handleMessage (WeatherForecast forecast)
   {
+//	  System.out.println(forecast.toString());
+//	  ObjectToJson.tada(forecast);
 	  int hour,day;
 	  double pr;
 	  int ts = forecast.getTimeslotIndex();

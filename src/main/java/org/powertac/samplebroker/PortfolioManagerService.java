@@ -145,7 +145,7 @@ implements PortfolioManager, Initializable, Activatable
   private boolean enableGConsumption = true;
   private boolean enableGProduction = false;
   private boolean enableGInterruptible = false;
-  private boolean enableGStorage = true;
+  private boolean enableGStorage = false;
   
   private double[] bootsrapUsage = new double[360];
   private double[] totalDemand = new double[2500];
@@ -155,6 +155,7 @@ implements PortfolioManager, Initializable, Activatable
   private double gamaParameter = 1.25;
   
   private double LowerBound = Parameters.LowerBoundStatic;
+  private double UpperBound = Parameters.UpperBoundStatic;
   
   public ExcelWriter excelWriter;
     
@@ -719,10 +720,26 @@ implements PortfolioManager, Initializable, Activatable
     			if(spec.getPowerType() == PowerType.CONSUMPTION  && enableGConsumption) {
 
     				if(calculatePercenatge(consumptionCustomers,consumptionCustomersPrev) > 70 
-    						&& Math.abs(findBestCompetitiveTariff(spec.getPowerType()) - calculateAvgRate(spec, false)) <0.007 
+    						&& Math.abs(findBestCompetitiveTariff(spec.getPowerType()) - calculateAvgRate(spec, false)) <0.01 
     						&& LowerBound  > calculateAvgRate(spec, false)) {
     					continue;
     				}
+    				
+    				if(calculatePercenatge(consumptionCustomers,consumptionCustomersPrev) < 60 
+    						&& findBestCompetitiveTariff(spec.getPowerType()) < UpperBound ) {
+    					UpperBound += 0.015;
+    					
+    					if(UpperBound > LowerBound)
+    						UpperBound = LowerBound - 0.05; 
+    					System.out.println("UpperBound: " + UpperBound);
+    					
+    				//skip
+    				}else if (calculatePercenatge(consumptionCustomers,consumptionCustomersPrev) > 70 
+    						&& findBestCompetitiveTariff(spec.getPowerType()) < UpperBound
+    						&& LowerBound  > calculateAvgRate(spec, false)) {
+    					continue;
+    				}
+    				
     				
     				tempTariff = crossoverTariffs(t);
     				tempTariff = mutateConsumptionTariff(tempTariff,false);   				
@@ -918,9 +935,9 @@ implements PortfolioManager, Initializable, Activatable
 		  System.out.printf("Total capacity fees: %.2f € \t Total Mine: %.2f €\t Threshold: %.2f\n",fees,totalFeesMine,realThreshold);
 		  
 		  if(Math.abs(totalFeesMine) < Parameters.LowerBoundChangerFees) {
-			  LowerBound += 0.001; ;
+			  LowerBound += 0.01; ;
 		  }else {
-			  LowerBound -= 0.001;
+			  LowerBound -= 0.01;
 			  if(LowerBound < Parameters.LowerBoundStatic) {
 				  LowerBound = Parameters.LowerBoundStatic; 
 			  }
@@ -1317,8 +1334,9 @@ implements PortfolioManager, Initializable, Activatable
   
   private TariffSpecification mutateConsumptionTariff(TariffSpecification spec,boolean beginning) {
 	  Random rnd = new Random();
-	  System.out.println("Before Mutation---");
-	  printTariff(spec);
+//	  System.out.println("Before Mutation---");
+//	  printTariff(spec);
+	  System.out.println(" ");//-- delete 
 	  double ep = Parameters.Ep;
 	  double ebp = Parameters.Ebp/2;
 //	  int ecl = Parameters.Ecl;
@@ -1398,8 +1416,15 @@ implements PortfolioManager, Initializable, Activatable
 		  }else {
 			  temp = temp - rnd.nextDouble()*ep;
 		  }
+		  
+		  // check upper bound
+		  if(UpperBound> temp) {
+			  temp = UpperBound + rnd.nextDouble()*ep;
+//			  temp = Parameters.UpperBoundStatic + ep - 2*rnd.nextDouble()*ep;
+		  }
+		  
 	  }else {
-		  temp = Parameters.LowerBoundStatic - rnd.nextDouble()*Parameters.LowerEp; 
+		  temp = Parameters.UpperBoundStatic + rnd.nextDouble()*1; 
 	  }
 	  
 	  spec = produceTOURates(spec,temp,0);
@@ -1414,6 +1439,7 @@ implements PortfolioManager, Initializable, Activatable
   private TariffSpecification mutateInterruptibleConsTariff(TariffSpecification spec) {
 	  Random rnd = new Random();
 	  System.out.println("Before Mutation---");
+
 	  printTariff(spec);
 	  double ep = Parameters.Ep;
 	  double ebp = Parameters.Ebp;
@@ -1526,7 +1552,7 @@ implements PortfolioManager, Initializable, Activatable
 		  n4 = t.getExpiration().getMillis()/1000;
 	  }
 	  
-      System.out.printf(" \tID:%d %30s, %15s| Periodic: % 5.4f Signup:% 5.2f Ewp:% 5.2f ContractL:%10d ts | Rates:%3d Avg:% 3.4f  RegRates:%3d |"
+      System.out.printf(" \tID:%10d %30s, %15s| Periodic: % 5.4f Signup:% 5.2f Ewp:% 5.2f ContractL:%10d ts | Rates:%3d Avg:% 3.4f  RegRates:%3d |"
       		+ "Exp: %d|\t ",
       t.getId(), t.getPowerType().toString(),t.getBroker().getUsername(),t.getPeriodicPayment(),
       t.getSignupPayment(),t.getEarlyWithdrawPayment(),t.getMinDuration()/5000,n1,a1,n2,n4);
