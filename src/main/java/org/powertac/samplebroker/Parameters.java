@@ -25,6 +25,7 @@ package org.powertac.samplebroker;
 public class Parameters {
 	
 	  public static String MyName = "mc0";
+	  public static int Predictor_Port = 8098; 
 	  
 	  //retail module Parameters	
 	  public static int reevaluationCons = 20;
@@ -45,7 +46,8 @@ public class Parameters {
 	  public static double Ebp = 3;
 	  public static double Ep = 0.15;
 	  public static double LowerEp = 0.007;
-	  public static double LowerEpOffset = 0.002;
+//	  public static double LowerEpOffset = 0.004;
+	  public static double LowerEpOffset = 0.014;
 	  public static double LowerBoundChangerFees = 50000;
 	  public static double LowerBoundStatic = - 0.15;
 	  public static double LowerBoundStaticAbsolute = - 0.095;

@@ -1,6 +1,8 @@
 package org.powertac.samplebroker.utility;
 
 import java.awt.List;
+import java.io.BufferedWriter;
+import java.io.FileWriter;
 import java.io.IOException;
 
 import org.apache.avro.data.Json.ObjectWriter;
@@ -62,7 +64,11 @@ public class ObjectToJson {
 		String json;
 		try {
 			json = ow.writeValueAsString(f);
-			System.out.println(json);
+//			System.out.println(json);
+			BufferedWriter writer = new BufferedWriter(new FileWriter("temp.json"));
+		    writer.write(json);
+		    
+		    writer.close();
 		} catch (JsonGenerationException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();

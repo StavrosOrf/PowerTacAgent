@@ -211,7 +211,7 @@ implements MarketManager, Initializable, Activatable
     energyPredictor = new EnergyPredictor();
     
 	try {
-	    FileOutputStream file = new FileOutputStream("..\\..\\logs\\" + comp.getName() + ".output.txt");
+	    FileOutputStream file = new FileOutputStream("..\\logs\\" + comp.getName() + ".output.txt");
 	    TeePrintStream tee = new TeePrintStream(file, System.out);
 	    System.setOut(tee);
 	    excelWriter = new ExcelWriter(comp.getName());
@@ -372,26 +372,41 @@ implements MarketManager, Initializable, Activatable
   public synchronized void handleMessage (WeatherForecast forecast)
   {
 //	  System.out.println(forecast.toString());
-//	  ObjectToJson.tada(forecast);
-	  int hour,day;
+	  ObjectToJson.tada(forecast);
+//	  energyPredictor.getKWhPredictorScript();
+
+	  int hour,day,counter = 0;
 	  double pr;
 	  int ts = forecast.getTimeslotIndex();
+	  double results[] = new double[24];
+	  hour = getTimeSlotHour(ts);
+	  day = getTimeSlotDay(ts);
+	  
+	  results = energyPredictor.getKWhPredictionLSTMClient(hour,day);
+	  
+//	  results = energyPredictor.getKWhPredictorLSTM(hour ,day,forecast);
+	  
 	  for(WeatherForecastPrediction f : forecast.getPredictions()) {
+		  
 		  hour = getTimeSlotHour(ts + f.getForecastTime());
 		  day = getTimeSlotDay(ts + f.getForecastTime());
 		  
-		  pr = energyPredictor.getKWhPredictor(day, hour,
-				new WeatherReport(ts + f.getForecastTime(), f.getTemperature(), f.getWindSpeed(), f.getWindDirection(), f.getCloudCover()));
-		
+//		  pr = energyPredictor.getKWhPredictor(day, hour,
+//				new WeatherReport(ts + f.getForecastTime(), f.getTemperature(), f.getWindSpeed(), f.getWindDirection(), f.getCloudCover()));
+//		
 //		  if(f.getForecastTime() == 1 ) {
 //			  excelWriter.writeCell(forecast.getTimeslotIndex() + 1 - 360, 1, pr);
 //		  }
-		  excelWriter.writeCell(forecast.getTimeslotIndex() + f.getForecastTime() - 360 , f.getForecastTime() + 2, pr,false);
+		  excelWriter.writeCell(forecast.getTimeslotIndex() + f.getForecastTime() - 360 , f.getForecastTime() + 2, results[counter],false);
+		  
+		  
 		  if(day < 6) {
-			  netUsagePredictorWd[hour] = pr;
+			  netUsagePredictorWd[hour] = results[counter]*1000;
+			  
 		  }else {
-			  netUsagePredictorWe[hour] = pr;
+			  netUsagePredictorWe[hour] = results[counter]*1000;
 		  }
+		  counter++;
 //		  if( (timeslotRepo.currentSerialNumber()-4-360) % Parameters.reevaluationCons == 0) {
 //			  System.out.printf("Prediction| TS: %4d Energy: %.2f KWh ",ts + f.getForecastTime(),pr);
 //		  }
@@ -405,40 +420,40 @@ implements MarketManager, Initializable, Activatable
    */
   public synchronized void handleMessage (WeatherReport report)
   {
-	  int hour = getTimeSlotHour( report.getTimeslotIndex());
-	  int day = getTimeSlotDay( report.getTimeslotIndex());
-	  double pr = energyPredictor.getKWhPredictor(day, hour, report);
-
-	  if(day < 6) {
-		  netUsagePredictorWd[hour] = pr;
-	  }else {
-		  netUsagePredictorWe[hour] = pr;
-	  }
+//	  int hour = getTimeSlotHour( report.getTimeslotIndex());
+//	  int day = getTimeSlotDay( report.getTimeslotIndex());
+//	  double pr = energyPredictor.getKWhPredictor(day, hour, report);
+//
+//	  if(day < 6) {
+//		  netUsagePredictorWd[hour] = pr;
+//	  }else {
+//		  netUsagePredictorWe[hour] = pr;
+//	  }
 	  
 	  if(report.getTimeslotIndex()< 362) {
 		  prevWeatherReport = report;
 		  return;
 	  }
 	  if((report.getTimeslotIndex() - 360) % 25 == 0 )
-		  excelWriter.writeCell(report.getTimeslotIndex()-360,2,pr,true);
-	  else
-		  excelWriter.writeCell(report.getTimeslotIndex()-360,2,pr,false);
+		  excelWriter.writeCell(0,0,0,true);
+//	  else
+//		  excelWriter.writeCell(report.getTimeslotIndex()-360,2,pr,false);
 	  
-	  hour = getTimeSlotHour(prevWeatherReport.getTimeslotIndex());
-	  day = getTimeSlotDay(prevWeatherReport.getTimeslotIndex());
+//	  hour = getTimeSlotHour(prevWeatherReport.getTimeslotIndex());
+//	  day = getTimeSlotDay(prevWeatherReport.getTimeslotIndex());
 	  DistributionReport dr = contextManager.getReport();
-	  pr = energyPredictor.getKWhPredictor(day, hour, prevWeatherReport);
-	  totalPredictedEnergyKWH += pr;
+//	  pr = energyPredictor.getKWhPredictor(day, hour, prevWeatherReport);
+//	  totalPredictedEnergyKWH += pr;
 	  
 	  excelWriter.writeCell(dr.getTimeslot()-360,0,dr.getTimeslot(),false);
 	  excelWriter.writeCell(dr.getTimeslot()-360,1,dr.getTotalConsumption()-dr.getTotalProduction(),false);
-	  if(dr != null) {
+//	  if(dr != null) {
 //		  System.out.printf("Energy Prediction: Timeslot %d Energy( %.2f ) |Actual Energy Consumption timeslot %d "
 //		  		+ "( %.2f ) Actual Demand %.2f | diff: %.2f %% \n",
 //				  prevWeatherReport.getTimeslotIndex(),pr,
 //		  			dr.getTimeslot(),dr.getTotalConsumption(),dr.getTotalConsumption()-dr.getTotalProduction()
 //		  			,(dr.getTotalConsumption()-pr)*100/dr.getTotalConsumption());  
-	  }
+//	  }
 	  
 	  excelWriter.writeCell(dr.getTimeslot()-360,28,dr.getTotalConsumption(),false);
 //	  System.out.println("123");
