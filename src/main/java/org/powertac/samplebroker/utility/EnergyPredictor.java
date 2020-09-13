@@ -16,7 +16,6 @@
 package org.powertac.samplebroker.utility;
 
 import java.net.*;
-import java.util.Random;
 import java.io.*;
 
 import org.deeplearning4j.nn.modelimport.keras.KerasModelImport;
@@ -63,6 +62,7 @@ public class EnergyPredictor {
 			}
 			System.out.println("count: " + i);
 			clientSocket = new Socket("localhost", Parameters.Predictor_Port);
+			clientSocket.setSoTimeout(1500);
 		    out = new PrintWriter(clientSocket.getOutputStream(), true);
 		    in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
 		    System.out.println("sending");
@@ -85,39 +85,49 @@ public class EnergyPredictor {
 		        	break;
 //		        	return;
 		        }else {
-		        	if(counter == 0) {
-		        		resp = resp.split("\\[",2)[1].split("\\[",2)[1];
-		        		
-		        		for(int k = 0 ; k < 7 ; k++) {
-		        			result[k + 0] = Double.parseDouble(resp.split("\\s+")[k]);
-//		        			System.out.println(result[k]);
-		        		}
-		        	}else if(counter == 1) {		        		
-		        		resp = resp.trim();
-		        		for(int k = 0 ; k < 7 ; k++) {
-		        			result[k + 7] = Double.parseDouble(resp.split("\\s+")[k]);
-//		        			System.out.println(result[k+7]);
-		        		}		        		
-		        	}else if(counter == 2) {
-		        		resp = resp.trim();
-		        		for(int k = 0 ; k < 7 ; k++) {
-		        			result[k + 14] = Double.parseDouble(resp.split("\\s+")[k]);
-//		        			System.out.println(result[k+14]);
-		        		}
-		        	}else if(counter == 3) {
-		        		resp = resp.trim();
-		        		resp = resp.split("\\]",2)[0].split("\\]",2)[0];
-		        		for(int k = 0 ; k < 3 ; k++) {
-		        			result[k + 21] = Double.parseDouble(resp.split("\\s+")[k]);
-//		        			System.out.println(result[k+21]);
-		        		}
-
-		        	}   
+		        	resp = resp.replaceAll("\\[", "");
+		        	resp = resp.replaceAll("\\]", "");
+		        	resp = resp.trim();		        	
+		        	
+		        	String arr[] = resp.split("\\s+");
+		        	for(String s : arr) {
+		        		result[counter] = Double.parseDouble(s);
+		        	    counter ++;
+		        	}
+		        	
+//		        	if(counter == 0) {
+//		        		resp = resp.split("\\[",2)[1].split("\\[",2)[1];
+//		        		
+//		        		for(int k = 0 ; k < 7 ; k++) {
+//		        			result[k + 0] = Double.parseDouble(resp.split("\\s+")[k]);
+////		        			System.out.println(result[k]);
+//		        		}
+//		        	}else if(counter == 1) {		        		
+//		        		resp = resp.trim();
+//		        		for(int k = 0 ; k < 7 ; k++) {
+//		        			result[k + 7] = Double.parseDouble(resp.split("\\s+")[k]);
+////		        			System.out.println(result[k+7]);
+//		        		}		        		
+//		        	}else if(counter == 2) {
+//		        		resp = resp.trim();
+//		        		for(int k = 0 ; k < 7 ; k++) {
+//		        			result[k + 14] = Double.parseDouble(resp.split("\\s+")[k]);
+////		        			System.out.println(result[k+14]);
+//		        		}
+//		        	}else if(counter == 3) {
+//		        		resp = resp.trim();
+//		        		resp = resp.split("\\]",2)[0].split("\\]",2)[0];
+//		        		for(int k = 0 ; k < 3 ; k++) {
+//		        			result[k + 21] = Double.parseDouble(resp.split("\\s+")[k]);
+////		        			System.out.println(result[k+21]);
+//		        		}
+//
+//		        	}   
 	                
 	                
 //	                d =  Double.parseDouble(s);
 		        }
-		        counter ++;
+
 	        }
 
 
@@ -130,6 +140,11 @@ public class EnergyPredictor {
 		}
 		i++;
 	    }
+	    
+		  for(double dd : result) {
+			  System.out.print(dd + "| ");
+		  }
+	    System.out.println("It seems like read timed out");
 
 		/*
     	String simpleMlp;
@@ -210,6 +225,7 @@ public class EnergyPredictor {
 
 		try {
 			clientSocket = new Socket("localhost", Parameters.Predictor_Port);
+			clientSocket.setSoTimeout(1500);
 		    out = new PrintWriter(clientSocket.getOutputStream(), true);
 		    in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
 //		    System.out.println("sending");
@@ -230,37 +246,16 @@ public class EnergyPredictor {
 		        	}
 		        	return result;
 		        }else {
-		        	if(counter == 0) {
-		        		resp = resp.split("\\[",2)[1].split("\\[",2)[1];
-		        		
-		        		for(int k = 0 ; k < 7 ; k++) {
-		        			result[k + 0] = Double.parseDouble(resp.split("\\s+")[k]);
-//		        			System.out.println(result[k]);
-		        		}
-		        	}else if(counter == 1) {		        		
-		        		resp = resp.trim();
-		        		for(int k = 0 ; k < 7 ; k++) {
-		        			result[k + 7] = Double.parseDouble(resp.split("\\s+")[k]);
-//		        			System.out.println(result[k+7]);
-		        		}		        		
-		        	}else if(counter == 2) {
-		        		resp = resp.trim();
-		        		for(int k = 0 ; k < 7 ; k++) {
-		        			result[k + 14] = Double.parseDouble(resp.split("\\s+")[k]);
-//		        			System.out.println(result[k+14]);
-		        		}
-		        	}else if(counter == 3) {
-		        		resp = resp.trim();
-		        		resp = resp.split("\\]",2)[0].split("\\]",2)[0];
-		        		for(int k = 0 ; k < 3 ; k++) {
-		        			result[k + 21] = Double.parseDouble(resp.split("\\s+")[k]);
-//		        			System.out.println(result[k+21]);
-		        		}
-
-		        	}   
-		     
+		        	resp = resp.replaceAll("\\[", "");
+		        	resp = resp.replaceAll("\\]", "");
+		        	resp = resp.trim();		        
+		        	
+		        	String arr[] = resp.split("\\s+");
+		        	for(String s : arr) {
+		        		result[counter] = Double.parseDouble(s);
+		        	    counter ++;
+		        	}		    
 		        }
-		        counter ++;
 	        }
 		    
 
@@ -341,7 +336,7 @@ public class EnergyPredictor {
 			p = Runtime.getRuntime().exec("python prediction.py ");
 			BufferedReader stdInput = new BufferedReader(new InputStreamReader(p.getInputStream()));
 			String s ;
-			double d;
+//			double d;
 //			System.out.println(stdInput.readLine());
 //			stdInput.readLine();
 			while ((s = stdInput.readLine()) != null) {							

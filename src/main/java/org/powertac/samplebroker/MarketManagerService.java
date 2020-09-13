@@ -181,8 +181,8 @@ implements MarketManager, Initializable, Activatable
     	tradesPassedWe[i] = 1;
     	tradesPassedWd[i] = 1;
     	
-    	netUsageWe[i] = 20000;
-    	netUsageWd[i] = 20000;
+    	netUsageWe[i] = 40000;
+    	netUsageWd[i] = 30000;
     	netUsageCounterWe[i] = 1;
     	netUsageCounterWd[i] = 1;
     }
@@ -385,7 +385,11 @@ implements MarketManager, Initializable, Activatable
 	  results = energyPredictor.getKWhPredictionLSTMClient(hour,day);
 	  
 //	  results = energyPredictor.getKWhPredictorLSTM(hour ,day,forecast);
-	  
+//	  System.out.print( "Tmeslot: "+ ts);
+//	  for(double dd : results) {
+//		  System.out.print(dd + "| ");
+//	  }
+//	  System.out.println(" ");
 	  for(WeatherForecastPrediction f : forecast.getPredictions()) {
 		  
 		  hour = getTimeSlotHour(ts + f.getForecastTime());
@@ -491,7 +495,8 @@ implements MarketManager, Initializable, Activatable
 //	}
 
     log.debug(" Current timeslot is " + timeslotRepo.currentTimeslot().getSerialNumber());
-    System.out.println("\n|---------------------|  Current timeslot is " + timeslotRepo.currentTimeslot().getSerialNumber());
+    System.out.println("\n|---------------------|  Current timeslot is " + timeslotRepo.currentTimeslot().getSerialNumber() 
+    			+" |  Day: "+ getTimeSlotDay(timeslotIndex) + "  Hour: " + getTimeSlotHour(timeslotIndex));
     for (Timeslot timeslot : timeslotRepo.enabledTimeslots()) {
       printAboutTimeslot(timeslot);
 //      System.out.println("usage record lentgh: " + broker.getUsageRecordLength());

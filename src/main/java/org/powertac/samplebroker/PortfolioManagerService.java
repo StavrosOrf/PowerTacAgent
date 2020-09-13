@@ -143,9 +143,9 @@ implements PortfolioManager, Initializable, Activatable
   private boolean enableInterruptible = true;
   
   private boolean enableGConsumption = true;
-  private boolean enableGProduction = false;
+  private boolean enableGProduction = true;
   private boolean enableGInterruptible = false;
-  private boolean enableGStorage = false;
+  private boolean enableGStorage = true;
   
   private double[] bootsrapUsage = new double[360];
   private double[] totalDemand = new double[2500];
@@ -582,7 +582,7 @@ implements PortfolioManager, Initializable, Activatable
         createInitialTariffs();
       } 
       else {
-    	 
+
 //    	 if(timeslotRepo.currentTimeslot().getSerialNumber() > Parameters.LATE_GAME) {
 //    		 isLateGame = true;
 //    	 }else {
@@ -593,7 +593,7 @@ implements PortfolioManager, Initializable, Activatable
     	 if(timer == Parameters.reevaluationCons) {
 //    		calculateWeights();
     		
-    		 
+        	System.out.println("Date: " + timeslotRepo.currentTimeslot().getStartInstant().toString());
     		double[] d = new double[2];
    		  	d = calcDemandMeanDeviation();
     		System.out.print("Current| Threshold: "+  (d[0] + gamaParameter*d[1]) +"\t Peaks| ");
@@ -948,17 +948,21 @@ implements PortfolioManager, Initializable, Activatable
 		  System.out.printf("Total capacity fees: %.2f € \t Total Mine: %.2f €\t Threshold: %.2f\n",fees,totalFeesMine,realThreshold);
 		  
 		  if(Math.abs(totalFeesMine) < Parameters.LowerBoundChangerFees) {
-			  LowerBound += 0.01; ;
+			  LowerBound += 0.005; ;
 		  }else {
-			  LowerBound -= 0.01;
+			  LowerBound -= 0.005;
 			  if(LowerBound < Parameters.LowerBoundStatic) {
 				  LowerBound = Parameters.LowerBoundStatic; 
 			  }
 			  
 //			  LowerBound = Parameters.LowerBoundStatic;
 		  }
-		  System.out.printf("Lower Bound: %.2f \t Upper Bound: %.2f \n",LowerBound,UpperBound);
+		  if(timeslotIndex > 1500) {
+			  LowerBound -= 0.005;
+		  }
+			  
 		  
+		  System.out.printf("Lower Bound: %.2f \t Upper Bound: %.2f \n",LowerBound,UpperBound);		  
 	  }
 	  
 
@@ -1049,10 +1053,10 @@ implements PortfolioManager, Initializable, Activatable
 	  double sumWe = 0, sumWd = 0;
 	  
 //	  for(int i = 0; i<24 ;i++) {
-//		  System.out.printf(" %.2f |",netUsageWd[i]);
+//		  System.out.printf(" %.2f |",netUsageWd[i]/1000);
 //	  }
 //	  for(int i = 0; i<24 ;i++) {
-//		  System.out.printf(" %.2f |",netUsageWe[i]);
+//		  System.out.printf(" %.2f |",netUsageWe[i]/1000);
 //	  }
 //	  System.out.println("");
 //	  for(int i = 0; i<24 ;i++) {
@@ -1096,8 +1100,10 @@ implements PortfolioManager, Initializable, Activatable
 	  spec.withMinDuration(t.getMinDuration());
 	  spec.withPeriodicPayment(t.getPeriodicPayment());
 	  spec.withSignupPayment(t.getSignupPayment());
-	  spec.withExpiration(t.getExpiration());
-	 
+	  if(t.getExpiration() != null) {
+		  spec.withExpiration(t.getExpiration());		  
+	  }
+
 	  double wWe[] = new double[24];
 	  double wWd[] = new double[24];
 
@@ -1200,11 +1206,12 @@ implements PortfolioManager, Initializable, Activatable
 	  
 	  //Mutating periodic payment
 	  double temp = spec.getPeriodicPayment();
+	  temp = -4;
 	  if(temp == 0) {
-		  temp = -6.5;
+		  temp = -4.5;
 	  }
 	  temp = temp * (1 - ep )+  (temp * (1 +  ep ) - temp * (1 - ep ))*rnd.nextDouble();
-	  spec.withPeriodicPayment(0);
+	  spec.withPeriodicPayment(temp);
 	  	  
 	  //Mutating signup payment
 	  temp = spec.getSignupPayment();
@@ -1239,14 +1246,16 @@ implements PortfolioManager, Initializable, Activatable
 //		  spec.withMinDuration(ecl);
 //	  }
 //	  spec.withMinDuration(ecl);
-	  spec.withMinDuration(Parameters.timeslotMS * (Parameters.reevaluationProduction-2));
+	  spec.withMinDuration(Parameters.timeslotMS * (10*Parameters.reevaluationProduction-2));
 	  
 	  temp = t.getRates().get(0).getMinValue();
 	  if(temp == 0) {
 		  temp =0.01;
 	  }
 	  temp = temp * (1 - ep )+  (temp * (1 +  ep ) - temp * (1 - ep ))*rnd.nextDouble();
-	
+	  
+	  temp = Parameters.UpperBoundProduction + rnd.nextDouble()*Parameters.LowerEp ;
+	  
 	  Rate r = new Rate().withMinValue(temp);
 	  spec.addRate(r);
 	  
@@ -1294,7 +1303,7 @@ implements PortfolioManager, Initializable, Activatable
 //		  ecl = tmp/2;
 //	  }
 //	  tmp = tmp - ecl + rnd.nextInt(2*ecl);
-	  spec.withMinDuration(Parameters.timeslotMS * (Parameters.reevaluationStorage-2));
+	  spec.withMinDuration(Parameters.timeslotMS * (5*Parameters.reevaluationStorage-2));
 	  
 	  double a1 = 0;
 	  temp = 0;
@@ -1310,7 +1319,33 @@ implements PortfolioManager, Initializable, Activatable
 		  temp = -0.1;
 	  }
 	  temp = temp * (1 - ep )+  (temp * (1 +  ep ) - temp * (1 - ep ))*rnd.nextDouble();
-	
+	  
+//	  if(spec.getPowerType() == PowerType.THERMAL_STORAGE_CONSUMPTION) {
+//		  
+//		  temp = findBestCompetitiveTariff(spec.getPowerType(),true);
+//		  ep = Parameters.LowerEp;
+//
+//		  System.out.println("Current minimum comp tariff avg: "+ temp);
+//		  if(temp == -1 ) { // || timeslotRepo.currentSerialNumber() < 370) { 
+//			  temp = -0.15 + rnd.nextDouble()*ep; 
+//		  }else {
+//			  temp = temp + rnd.nextDouble()*ep + Parameters.LowerEpOffset;
+//		  }
+//		  
+//		  // check upper bound
+//		  if(-0.15 > temp) {
+//			  temp = UpperBound + rnd.nextDouble()*ep;			  
+//		  }
+//		  
+//		  if(temp > 0 ) {
+//			  temp =  -0.15 + rnd.nextDouble()*ep; 
+//		  }
+//	  }
+	  
+	  if(temp > 0 ) {
+	  temp =  -0.15 + rnd.nextDouble()*ep; 
+	  }
+	  
 	  spec = produceTOURates(spec,temp,0);
 	  spec.withPeriodicPayment(0);
 	  
@@ -1448,12 +1483,18 @@ implements PortfolioManager, Initializable, Activatable
 	  }
 	  
 	  //if temp < lowerBound apply expiration
-	  Instant now = Instant.now();
+	  if(temp > LowerBound + 2*Parameters.LowerEpOffset ) {
+//		  Instant now = Instant.now();
+		  Instant now = timeslotRepo.currentTimeslot().getStartInstant();
+		  now = now.withMillis(now.getMillis() + Parameters.timeslotMS*3);
+		  spec = spec.withExpiration(now);
+	  }
 
-	  now = now.withMillis(now.getMillis() + Parameters.timeslotMS*4);
-
-	  spec = spec.withExpiration(now);
-	  System.out.println(spec.getExpiration());
+//	  System.out.println(spec.getExpiration());
+	  
+	  if(temp > Parameters.LowerBoundStaticAbsolute) {
+		  temp = Parameters.LowerBoundStaticAbsolute - rnd.nextDouble()* Parameters.LowerEpOffset;
+	  }
 	  spec = produceTOURates(spec,temp,0);
 	  
 	  spec.withPeriodicPayment(0);
@@ -1535,7 +1576,18 @@ implements PortfolioManager, Initializable, Activatable
 	  
 	  double min = -10000,tmp = 0;
 	  TariffSpecification minTariff = null;
-	  for(TariffSpecification t : competingTariffs.get(pt)) {
+	  List<TariffSpecification> l = competingTariffs.get(pt);
+	  
+	  if(pt == PowerType.THERMAL_STORAGE_CONSUMPTION) {
+		  if(l != null)
+			  l.addAll(competingTariffs.get(PowerType.STORAGE));
+		  else
+			  l = competingTariffs.get(PowerType.STORAGE);
+	  }
+	  
+	  if(l == null)
+		  return -1;
+	  for(TariffSpecification t : l) {
 		  //TODO check if tariff is valid()
 		  if(t.getEarlyWithdrawPayment() + t.getSignupPayment() > 0 || t.getEarlyWithdrawPayment() + t.getSignupPayment() < -30) {
 			  if(print_en)
@@ -1586,7 +1638,7 @@ implements PortfolioManager, Initializable, Activatable
       System.out.printf(" \tID:%10d %30s, %15s| Prdic: % 5.4f Sgup:% 5.2f Ewp:% 5.2f CL:%10d ts | Rates:%3d Avg:% 3.4f  RegRates:%3d |"
       		+ "Exp: %s|\t ",
       t.getId(), t.getPowerType().toString(),t.getBroker().getUsername(),t.getPeriodicPayment(),
-      t.getSignupPayment(),t.getEarlyWithdrawPayment(),t.getMinDuration()/5000,n1,a1,n2,s);
+      t.getSignupPayment(),t.getEarlyWithdrawPayment(),t.getMinDuration()/Parameters.timeslotMS,n1,a1,n2,s);
       
       if(t.getRegulationRates().size() >= 1) {
     	  for(RegulationRate r : t.getRegulationRates())

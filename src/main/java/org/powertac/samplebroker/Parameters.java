@@ -25,12 +25,13 @@ package org.powertac.samplebroker;
 public class Parameters {
 	
 	  public static String MyName = "mc0";
-	  public static int Predictor_Port = 8098; 
+	  public static int Predictor_Port = 8098;
+	  public static int timeslotMS = 5000;
 	  
 	  //retail module Parameters	
-	  public static int reevaluationCons = 20;
-	  public static int reevaluationStorage = 2*reevaluationCons;
-	  public static int reevaluationProduction = 3*reevaluationCons;
+	  public static int reevaluationCons = 12;
+	  public static int reevaluationStorage = 14*reevaluationCons;
+	  public static int reevaluationProduction = 200*reevaluationCons;
 	  public static int reevaluationInterruptible = 2 *reevaluationCons;
 	  	  
 	  public static int initialTariffBound = 365;
@@ -46,14 +47,16 @@ public class Parameters {
 	  public static double Ebp = 3;
 	  public static double Ep = 0.15;
 	  public static double LowerEp = 0.007;
-//	  public static double LowerEpOffset = 0.004;
-	  public static double LowerEpOffset = 0.014;
+	  public static double LowerEpOffset = 0.004;
+//	  public static double LowerEpOffset = 0.014;
 	  public static double LowerBoundChangerFees = 50000;
 	  public static double LowerBoundStatic = - 0.15;
-	  public static double LowerBoundStaticAbsolute = - 0.095;
+	  public static double LowerBoundStaticAbsolute = - 0.115;
 	  public static double UpperBoundStatic = - 0.25;
-	  public static double LowerBoundRollChance = 0.85;
-	  public static int timeslotMS = 3000;
+	  public static double LowerBoundRollChance = 0.5;
+	  
+	  public static double UpperBoundProduction =  0.015;
+	  
 	  public static int Ecl = timeslotMS* (4* reevaluationCons/5)*10000;
 	  public static double Ereg = 0.05;
 	  
