@@ -341,6 +341,7 @@ implements MarketManager, Initializable, Activatable
    */
   public synchronized void handleMessage (MarketTransaction tx)
   {
+//	  System.out.println(tx.getTimeslotIndex());
 	  if(tx.getPrice() > 0) {
 		  totalWholesaleCosts[1] += tx.getPrice();
 		  totalWholesaleEnergy[1] += tx.getMWh()*1000;
@@ -494,8 +495,8 @@ implements MarketManager, Initializable, Activatable
 //				(contextManager.totalActualEnergy()-totalPredictedEnergyKWH)*100/contextManager.totalActualEnergy());
 //	}
 
-    log.debug(" Current timeslot is " + timeslotRepo.currentTimeslot().getSerialNumber());
-    System.out.println("\n|---------------------|  Current timeslot is " + timeslotRepo.currentTimeslot().getSerialNumber() 
+    log.debug(" Current timeslot is " + timeslotIndex);
+    System.out.println("\n|---------------------|  Current timeslot is " + timeslotIndex 
     			+" |  Day: "+ getTimeSlotDay(timeslotIndex) + "  Hour: " + getTimeSlotHour(timeslotIndex));
     for (Timeslot timeslot : timeslotRepo.enabledTimeslots()) {
       printAboutTimeslot(timeslot);
@@ -504,7 +505,7 @@ implements MarketManager, Initializable, Activatable
 //      System.out.print("  Index: "+ index);
       neededKWh = portfolioManager.collectUsage(index);
 //      System.out.print(" needed KWH: "+ neededKWh);
-      submitBidMCTS(neededKWh,timeslotRepo.currentTimeslot().getSerialNumber(), timeslot.getSerialNumber());
+      submitBidMCTS(neededKWh,timeslotIndex, timeslot.getSerialNumber());
  
     }
 //    System.out.println("|_____________________|");
@@ -564,7 +565,7 @@ implements MarketManager, Initializable, Activatable
     //TODO check if needed is negative or positive
     if(neededMWh < 0) {
         log.info("new order for " + neededMWh + " at " + limitPrice + " in timeslot " + timeslotBidding);
-        Order order = new Order(broker.getBroker(), timeslotBidding, neededMWh, limitPrice );
+        Order order = new Order(broker.getBroker(), timeslotBidding, neededMWh, limitPrice + 30 );
         
         lastOrder.put(timeslotBidding, order);
         broker.sendMessage(order);
@@ -728,7 +729,7 @@ implements MarketManager, Initializable, Activatable
     // ==========================================================================================	
     log.info("new order for " + neededMWh + " at " + limitPrice + " in timeslot " + timeslotBidding);
 //    Order order = new Order(broker.getBroker(), timeslotBidding, neededMWh, limitPrice);
-    order = new Order(broker.getBroker(), timeslotBidding, neededMWh, bestActionNode.actionID);
+    order = new Order(broker.getBroker(), timeslotBidding, neededMWh, bestActionNode.actionID-30);
  
     lastOrder.put(timeslotBidding, order);
     broker.sendMessage(order);
@@ -788,7 +789,7 @@ private void printTree(Node n) {
     // set price between oldLimitPrice and maxPrice, according to number of
     // remaining chances we have to get what we need.
     double newLimitPrice = minPrice; // default value
-    int current = timeslotRepo.currentSerialNumber();
+    int current = timeslot;
     int remainingTries = (timeslot - current
                           - Competition.currentCompetition().getDeactivateTimeslotsAhead());
     log.debug("remainingTries: " + remainingTries);

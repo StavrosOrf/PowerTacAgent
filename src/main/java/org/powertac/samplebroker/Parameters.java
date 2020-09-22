@@ -15,6 +15,8 @@
  */
 package org.powertac.samplebroker;
 
+import org.powertac.common.config.ConfigurableValue;
+
 /**
  * This class holds all essentials parameters of the broker
  * 
@@ -26,8 +28,8 @@ public class Parameters {
 	
 	  public static String MyName = "mc0";
 	  public static int Predictor_Port = 8098;
-	  public static int timeslotMS = 5000;
-	  
+	  public static int timeslotMS = 3000;
+	    
 	  //retail module Parameters	
 	  public static int reevaluationCons = 12;
 	  public static int reevaluationStorage = 14*reevaluationCons;
@@ -44,7 +46,7 @@ public class Parameters {
 	  public static double TourLevelDecayFactor = 0.04;
 	  
 	  //Mutation Constants
-	  public static double Ebp = 3;
+	  public static double Ebp = 4;
 	  public static double Ep = 0.15;
 	  public static double LowerEp = 0.007;
 	  public static double LowerEpOffset = 0.004;

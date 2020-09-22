@@ -35,9 +35,9 @@ public class EnergyPredictor {
     public EnergyPredictor() {
     	String simpleMlp;
 		try {
-			simpleMlp = new ClassPathResource("LSTM_EP500_BS16.h5").getFile().getPath();
-	    	model = KerasModelImport.importKerasSequentialModelAndWeights(simpleMlp);	
-	    	
+//			simpleMlp = new ClassPathResource("LSTM_EP500_BS16.h5").getFile().getPath();
+//	    	model = KerasModelImport.importKerasSequentialModelAndWeights(simpleMlp);	
+//	    	
 		} catch (Exception e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
