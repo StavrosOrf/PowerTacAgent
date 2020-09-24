@@ -125,10 +125,10 @@ implements PortfolioManager, Initializable, Activatable
 //  private int storageCustomersPrev = 0;
   private int interruptibleCustomersPrev = 0;
 //  private int tHCCustomersPrev = 0;
-  private int solarCustomersPrev = 0;
-  private int windCustomersPrev = 0;
-  private int BatteryCustomersPrev = 0;
-  private int otherProducersPrev = 0;
+//  private int solarCustomersPrev = 0;
+//  private int windCustomersPrev = 0;
+//  private int BatteryCustomersPrev = 0;
+//  private int otherProducersPrev = 0;
   private double totalProfits = 0;
   
   private double weightWe[] = new double[24];
@@ -580,9 +580,9 @@ implements PortfolioManager, Initializable, Activatable
   {
 	  calcCapacityFees(timeslotIndex);
 	  
-	  ArrayList<TariffSpecification> t ;
+//	  ArrayList<TariffSpecification> t ;
 	  TariffSpecification tempTariff ;
-	  System.out.printf("Energy Usage: %.2f KWh   ts %d \n",totalEnergyUsed[timeslotIndex-1],timeslotIndex-1);
+	  System.out.printf("-->Energy Usage: %.2f KWh   ts %d \n",totalEnergyUsed[timeslotIndex-1],timeslotIndex-1);
 	  totalEnergyused += totalEnergyUsed[timeslotIndex-1];
 	  //Check if we need to update our tariffs and Print stats
       if (customerSubscriptions.size() == 0) {
@@ -643,13 +643,11 @@ implements PortfolioManager, Initializable, Activatable
     		printBalanceStats();
     		System.out.println("");
 
-    		tariffDB.decayFittnessValue(0);
-    		tariffDB.decayFittnessValue(1);
+//    		tariffDB.decayFittnessValue(0);
+//    		tariffDB.decayFittnessValue(1);
     		
     		for (TariffSpecification spec : customerSubscriptions.keySet()) {
     			if(tariffCharges.get(spec) == null) {
-//    				System.out.print("NULL + |");
-//    				printTariff(spec);
     				continue;
     			}
     				
@@ -661,7 +659,6 @@ implements PortfolioManager, Initializable, Activatable
     				count += r.subscribedPopulation;
     			}
     			// Print info about customers
-//    			if(tariffCharges.get(spec) != 0) {
     			if(true) {
     				System.out.printf("-- Profit: % 8.2f ",tariffCharges.get(spec));	
     				
@@ -703,37 +700,37 @@ implements PortfolioManager, Initializable, Activatable
     		    		System.out.print( "< "+count+" / "+ otherProducers +" > +/- "+ (count-tariffCustomerCount.get(spec)) +" \\ ");
     		    		tariffCustomerCount.put(spec,count);
     		    		
-    		    }
+    			    }
     				
     				printTariff(spec);
     			}
     			//add tariff to Ground Level
     			if(tariffCharges.get(spec) != 0) {
     				
-    				boolean isInitial = false;
-    				if(timeslotRepo.currentTimeslot().getSerialNumber() == 361 + Parameters.reevaluationCons)		
-    					isInitial = true;
-    				
-    				for (int i = 0; i <3; i++) {
-        				tariffDB.addTariff(spec.getBroker().getUsername(),spec.getPowerType(),(int)spec.getMinDuration(),
-            					spec.getEarlyWithdrawPayment(),spec.getSignupPayment(), spec.getPeriodicPayment(),calculateAvgRate(spec,false),
-            					tariffCharges.get(spec),i, spec.getRates(),spec.getRegulationRates(),timeslotRepo.currentTimeslot().getSerialNumber()
-            					,marketManager.getCompetitors(),isInitial);						
-					}
+//    				boolean isInitial = false;
+//    				if(timeslotRepo.currentTimeslot().getSerialNumber() == 361 + Parameters.reevaluationCons)		
+//    					isInitial = true;
+//    				
+//    				for (int i = 0; i <3; i++) {
+//        				tariffDB.addTariff(spec.getBroker().getUsername(),spec.getPowerType(),(int)spec.getMinDuration(),
+//            					spec.getEarlyWithdrawPayment(),spec.getSignupPayment(), spec.getPeriodicPayment(),calculateAvgRate(spec,false),
+//            					tariffCharges.get(spec),i, spec.getRates(),spec.getRegulationRates(),timeslotRepo.currentTimeslot().getSerialNumber()
+//            					,marketManager.getCompetitors(),isInitial);						
+//					}
     			}
     			
-    			PowerType pt = spec.getPowerType();
-    			if(tariffDB.getNumberOfRecords(pt,brokerContext.getBroker().getUsername(),1,false,marketManager.getCompetitors()) < 2) {
-
-    				if(tariffDB.getNumberOfRecords(pt,brokerContext.getBroker().getUsername(),0,false,marketManager.getCompetitors()) < 2) {
-    					continue;
-    				}else{
-    					t = tariffDB.getBestTariff(2, pt,brokerContext.getBroker(),0,false,marketManager.getCompetitors());
-    				}
-    			}else{
-    					t = tariffDB.getBestTariff(2, pt,brokerContext.getBroker(),1,false,marketManager.getCompetitors());
-
-    			}
+//    			PowerType pt = spec.getPowerType();
+//    			if(tariffDB.getNumberOfRecords(pt,brokerContext.getBroker().getUsername(),1,false,marketManager.getCompetitors()) < 2) {
+//
+//    				if(tariffDB.getNumberOfRecords(pt,brokerContext.getBroker().getUsername(),0,false,marketManager.getCompetitors()) < 2) {
+//    					continue;
+//    				}else{
+//    					t = tariffDB.getBestTariff(2, pt,brokerContext.getBroker(),0,false,marketManager.getCompetitors());
+//    				}
+//    			}else{
+//    					t = tariffDB.getBestTariff(2, pt,brokerContext.getBroker(),1,false,marketManager.getCompetitors());
+//
+//    			}
     			
 //    			t = tariffDB.getBestTariff(2, spec.getPowerType(),spec.getBroker(),1,false,marketManager.getCompetitors());
 //    			
@@ -742,8 +739,10 @@ implements PortfolioManager, Initializable, Activatable
     			
     			if(spec.getPowerType() == PowerType.CONSUMPTION) {
     				double enemyBestRate = findBestCompetitiveTariff(spec.getPowerType(),false);
-    				double myRate = calculateAvgRate(spec, false); 
-    				if(( myRate > enemyBestRate && myRate > LowerBound ) || (myRate - enemyBestRate) > 0.025  ) {
+    				double myRate = calculateAvgRate(spec, false);     				
+    				
+//    				if(( myRate > enemyBestRate && myRate > LowerBound ) || (myRate - enemyBestRate) > 0.025  ) {
+    				if((myRate - enemyBestRate) > 0.025  && enemyBestRate != -1 ) {
     					System.out.println("Revoked");
             	        // revoke the old one
     					tariffCharges.remove(spec);
@@ -753,6 +752,7 @@ implements PortfolioManager, Initializable, Activatable
     				}
     			}
     			
+    			tempTariff = spec;
     			
     			if(spec.getPowerType() == PowerType.CONSUMPTION  && enableGConsumption) {
         	        enableGConsumption = false;
@@ -760,6 +760,8 @@ implements PortfolioManager, Initializable, Activatable
     				// find my tariff with the lower avg rate
     				double myBestRate = findMyBestTariff(spec.getPowerType());
     				double enemyBestRate = findBestCompetitiveTariff(spec.getPowerType(),false);
+//    				if(enemyBestRate == -1)
+//    					enemyBestRate = 1.2*LowerBound; 
     				
     				System.out.println("My best rate: " + myBestRate);
     				if(calculatePercentage(consumptionCustomers,consumptionCustomersTotal) > 50 
@@ -783,7 +785,7 @@ implements PortfolioManager, Initializable, Activatable
     					continue;
     				}   				
     				
-    				tempTariff = crossoverTariffs(t);
+//    				tempTariff = crossoverTariffs(t);
     				tempTariff = mutateConsumptionTariff(tempTariff,false);   				
 //        			tariffCharges.remove(spec);
     				
@@ -807,7 +809,7 @@ implements PortfolioManager, Initializable, Activatable
 //        	        TariffRevoke revoke = new TariffRevoke(brokerContext.getBroker(), spec);
 //        	        brokerContext.sendMessage(revoke);
     			} else if(spec.getPowerType().isStorage() && enableStorage && enableGStorage){
-    				tempTariff = crossoverTariffs(t);
+//    				tempTariff = crossoverTariffs(t);
     				tempTariff = mutateStorageTariff(tempTariff);   				
         			tariffCharges.remove(spec);
         			
@@ -821,7 +823,7 @@ implements PortfolioManager, Initializable, Activatable
         	        brokerContext.sendMessage(revoke);
         	        
     			} else if(spec.getPowerType().isProduction() && enableProduction && enableGProduction) {
-    				tempTariff = crossoverTariffs(t);
+//    				tempTariff = crossoverTariffs(t);
     				tempTariff = mutateProductionTariff(tempTariff);   				
         			tariffCharges.remove(spec);
         			
@@ -835,7 +837,7 @@ implements PortfolioManager, Initializable, Activatable
         	        brokerContext.sendMessage(revoke);
         	        
     			}else if(spec.getPowerType() == PowerType.INTERRUPTIBLE_CONSUMPTION && enableInterruptible && enableGInterruptible) {
-    				tempTariff = crossoverTariffs(t);
+//    				tempTariff = crossoverTariffs(t);
     				tempTariff = mutateInterruptibleConsTariff(tempTariff);
     				tariffCharges.remove(spec);
 
@@ -1006,7 +1008,7 @@ implements PortfolioManager, Initializable, Activatable
 //					  }
 				  }
 				  if(mineEnergy == 1) {
-					  System.out.println("");
+					  System.out.println(" ");
 					  break;
 				  }  
 				  //total energy of all brokers at that timeslot
@@ -1195,8 +1197,8 @@ implements PortfolioManager, Initializable, Activatable
 			  r.withMinValue(Parameters.MIN_RATE_VALUE); 
 		  else
 		  {
-//			  r.withMinValue(avg*wWe[i]);		
-			  r.withMinValue(avg);		
+			  r.withMinValue(avg*wWe[i]);		
+//			  r.withMinValue(avg);		
 		  }
 	  
 		  
@@ -1216,6 +1218,7 @@ implements PortfolioManager, Initializable, Activatable
 			  r.withDailyEnd(0);
 		  
 		  r.withMinValue(avg*wWd[i]);
+//		  r.withMinValue(avg);	s
 		  r.withMaxCurtailment(maxCurtailment);
 //		  System.out.println(avg*wWd[i]);
 		  spec.addRate(r);
@@ -1544,7 +1547,7 @@ implements PortfolioManager, Initializable, Activatable
 			  ep = 4 * ep;
 
 		  //always mutate down if avg is bigger than bound
-		  if(roll < 0.5 || temp < LowerBound || flag) {
+		  if(roll < 0.75 || temp < LowerBound || flag) {
 			  temp = temp + rnd.nextDouble()*ep + Parameters.LowerEpOffset;
 		  }else {
 			  temp = temp - rnd.nextDouble()*ep;
@@ -1563,12 +1566,12 @@ implements PortfolioManager, Initializable, Activatable
 	  }
 	  
 	  //if temp < lowerBound apply expiration
-	  if(temp > LowerBound + 2*Parameters.LowerEpOffset ) {
-		  Instant now = Instant.now();
-//		  Instant now = timeslotRepo.currentTimeslot().getStartInstant();
-		  now = now.withMillis(now.getMillis() + Parameters.timeslotMS*0);
-		  spec = spec.withExpiration(now);
-	  }
+//	  if(temp > LowerBound + 2*Parameters.LowerEpOffset ) {
+//		  Instant now = Instant.now();
+////		  Instant now = timeslotRepo.currentTimeslot().getStartInstant();
+//		  now = now.withMillis(now.getMillis() + Parameters.timeslotMS*0);
+//		  spec = spec.withExpiration(now);
+//	  }
 
 //	  System.out.println(spec.getExpiration());
 	  
@@ -1796,11 +1799,12 @@ implements PortfolioManager, Initializable, Activatable
 		t1 = marketManager.getBalancingCosts();
 		t2 = marketManager.getTotalBalancingEnergy();
 		totalProfits += t1;
-		System.out.printf("Balancing costs MM	\t: % .2f € \t Energy: % .2f KWh  \t Avg: % .2f €/MWh\n", t1,t2,t1/(t2/1000));
+		System.out.printf("Balancing costs MM	\t: % .2f € \t Energy: % .2f KWh        \t Avg: % .2f €/MWh\n", t1,t2,t1/(t2/1000));
 		t1 = marketManager.getDistributionCosts();
 		t2 = marketManager.getTotalDistributionEnergy();
 		totalProfits += t1;
-		System.out.printf("Distribution costs	\t: % .2f € \t Energy: % .2f KWh\t\t Avg: % .2f €/KWh\n",t1,t2,t2/t1);
+//		System.out.printf("Distribution costs	\t: % .2f € \t Energy: % .2f KWh\t\t Avg: % .2f €/KWh\n",t1,t2,t2/t1);
+		System.out.printf("Distribution costs	\t: % .2f € \n",t1);
 		t1 = marketManager.getWholesaleCosts()[0];
 		t2 = marketManager.getWholesaleEnergy()[0];
 		totalProfits += t1;
@@ -1837,8 +1841,7 @@ implements PortfolioManager, Initializable, Activatable
 					t = tariffDB.getBestTariff(2, pt,brokerContext.getBroker(),1,true,marketManager.getCompetitors());
 					tempTariff = crossoverTariffs(t);
 			}
-			
-				   			
+					   			
 			if( pt == PowerType.CONSUMPTION && enableGConsumption) {
 				tempTariff = mutateConsumptionTariff(tempTariff,true);   				
     			// TODO DELETE from db selected tariffs

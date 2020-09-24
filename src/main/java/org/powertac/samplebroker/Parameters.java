@@ -53,7 +53,8 @@ public class Parameters {
 //	  public static double LowerEpOffset = 0.014;
 	  public static double LowerBoundChangerFees = 50000;
 	  public static double LowerBoundStatic = - 0.15;
-	  public static double LowerBoundStaticAbsolute = - 0.115;
+//	  public static double LowerBoundStaticAbsolute = - 0.115;
+	  public static double LowerBoundStaticAbsolute = - 0.095;
 	  public static double UpperBoundStatic = - 0.25;
 	  public static double LowerBoundRollChance = 0.5;
 	  
