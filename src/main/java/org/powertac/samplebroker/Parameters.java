@@ -15,8 +15,6 @@
  */
 package org.powertac.samplebroker;
 
-import org.powertac.common.config.ConfigurableValue;
-
 /**
  * This class holds all essentials parameters of the broker
  * 
@@ -54,9 +52,10 @@ public class Parameters {
 	  public static double LowerBoundChangerFees = 50000;
 	  public static double LowerBoundStatic = - 0.15;
 //	  public static double LowerBoundStaticAbsolute = - 0.115;
-	  public static double LowerBoundStaticAbsolute = - 0.095;
+	  public static double LowerBoundStaticAbsolute = - 0.1275;
 	  public static double UpperBoundStatic = - 0.25;
 	  public static double LowerBoundRollChance = 0.5;
+	  public static double InterRateSpread = 0.015;
 	  
 	  public static double UpperBoundProduction =  0.015;
 	  
@@ -71,7 +70,7 @@ public class Parameters {
 	  public static int NO_BID = -9999;
 	  public static boolean WH_PRINT_ON = false;
 	  
-	  //Strategys enabled
+	  //Strategies enabled
 //	  public static boolean C2_ENABLED = true ; 
 	  
 	  public static boolean EN_DYNAMIC = true; // whether or not dynamic mcts is enabled

@@ -239,7 +239,7 @@ implements MarketManager, Initializable, Activatable
    */
   public synchronized void handleMessage (BalancingTransaction tx)
   {
-	  System.out.printf("--> Charge: % .2f E \t Energy: % .2f KWh\n",tx.getCharge(),tx.getKWh());
+//	  System.out.printf("--> Charge: % .2f E \t Energy: % .2f KWh\n",tx.getCharge(),tx.getKWh());
 	  totalBalancingEnergy += tx.getKWh();
 	  totalBalancingCosts += tx.getCharge();
 	  log.info("Balancing tx: " + tx.getCharge());
@@ -472,7 +472,7 @@ implements MarketManager, Initializable, Activatable
    */
   public synchronized void handleMessage (BalanceReport report)
   {
-	  System.out.printf("--> Imbalance:  %10.2f KWh\n" ,report.getNetImbalance());
+//	  System.out.printf("--> Imbalance:  %10.2f KWh\n" ,report.getNetImbalance());
 //	  System.out.printf("--> Imbalance: ts: %d  %10.2f M.P. %10.2f  \t Diff: % .2f\n" ,report.getTimeslotIndex(),report.getNetImbalance() 
 //			  	,broker.getBroker().findMarketPositionByTimeslot(report.getTimeslotIndex()).getOverallBalance()*1000,
 //			  	report.getNetImbalance()-broker.getBroker().findMarketPositionByTimeslot(report.getTimeslotIndex()).getOverallBalance()*1000); 
