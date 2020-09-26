@@ -285,12 +285,14 @@ implements MarketManager, Initializable, Activatable
 		}
 	}
 
-	System.out.println("=====================================================================================");
+	System.out.println("======================================================================================="
+			+ "========================================================");
 //	System.out.println("ts: " + dt.getPeakTimeslot() + "  " + dt.getBroker().getUsername()
 //			+ "  " + dt.getKWh() + "  " + dt.getThreshold() + "  " + dt.getCharge() );
 	System.out.printf("CapacityTransaction| peak ts:%5d Energy: %8.2f KWh ThreshHold: %8.2f  Costs: %10.2f €\n", 
 						dt.getPeakTimeslot(),dt.getKWh(),dt.getThreshold(), dt.getCharge());
-	System.out.println("=====================================================================================");
+	System.out.println("======================================================================================="
+			+ "========================================================");
     log.info("Capacity tx: " + dt.getCharge());
   }
 
