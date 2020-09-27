@@ -22,6 +22,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
@@ -773,61 +774,7 @@ implements PortfolioManager, Initializable, Activatable
     			
     			
     			
-    			if(spec.getPowerType() == PowerType.CONSUMPTION  && enableGConsumption) {
-        	        enableGConsumption = false;
-        	        
-    				// find my tariff with the lower avg rate
-    				double myBestRate = calculateAvgRate(findMyBestTariff(spec.getPowerType()),false);
-    				double enemyBestRate = findBestCompetitiveTariff(spec.getPowerType(),false);
-//    				if(enemyBestRate == -1)
-//    					enemyBestRate = 1.2*LowerBound; 
-    				
-    				if(calculatePercentage(consumptionCustomers,consumptionCustomersTotal) > 50 
-    						&& (Math.abs(enemyBestRate - myBestRate) <0.01 || enemyBestRate == -1) 
-    						){
-//    						&& LowerBound  > myBestRate) {
-    					continue;
-    				}
-    				
-    				if(calculatePercentage(consumptionCustomers,consumptionCustomersTotal) < 75 
-    						&& enemyBestRate < UpperBound ) {
-    					UpperBound += 0.015;
-    					
-    					if(UpperBound > LowerBound)
-    						UpperBound = LowerBound - 0.05; 
-    					System.out.println("UpperBound: " + UpperBound);
-    					
-    				//skip
-    				}else if (calculatePercentage(consumptionCustomers,consumptionCustomersTotal) >= 75 
-    						&&  enemyBestRate < UpperBound
-    						&& LowerBound  > myBestRate ) {
-    					continue;
-    				}   				
-    				
-//    				tempTariff = crossoverTariffs(t);
-    				tempTariff = mutateConsumptionTariff(tempTariff,false,0);   				
-//        			tariffCharges.remove(spec);
-    				
-    				if(checkIfAlreadyExists(tempTariff))
-    				{
-    					System.out.println("Not publishing");
-    					continue;
-    				}
-    					
-    				
-        			//commit the new tariff
-        			tempTariff.addSupersedes(spec.getId());
-        	        tariffRepo.addSpecification(tempTariff);
-        	        tariffCharges.put(tempTariff,0d);
-        	        tariffCustomerCount.put(tempTariff,0);
-        	        brokerContext.sendMessage(tempTariff);
-        	        
-
-        	        
-        	        // revoke the old one
-//        	        TariffRevoke revoke = new TariffRevoke(brokerContext.getBroker(), spec);
-//        	        brokerContext.sendMessage(revoke);
-    			} else if(spec.getPowerType().isStorage() && enableStorage && enableGStorage){
+    			if(spec.getPowerType().isStorage() && enableStorage && enableGStorage){
 //    				tempTariff = crossoverTariffs(t);
     				tempTariff = mutateStorageTariff(tempTariff);   				
         			tariffCharges.remove(spec);
@@ -873,38 +820,71 @@ implements PortfolioManager, Initializable, Activatable
         	        brokerContext.sendMessage(revoke);
     			}
     		}
-    		System.out.println("-- Total Consumers: " + consumptionCustomersTotal + " / " + consumptionCustomers);
+    		System.out.println("-- Total Consumers: " + consumptionCustomersTotal + " / " + consumptionCustomers + " \n");
     		
+    		boolean specialCase = false;
+	        //when we have  the monopoly revoke all tariffs that are below LowerBound
+	        if(calculatePercentage(consumptionCustomers, consumptionCustomersTotal) > 95  ) {
+//	        	specialCase = true;
+	        	ArrayList<TariffSpecification> list = new ArrayList<TariffSpecification>();
+	        	for (TariffSpecification t : tariffCharges.keySet()) {
+	        		if (t.getPowerType() == PowerType.CONSUMPTION && calculateAvgRate(t, false) > LowerBound ) {
+	    				System.out.println("Revoking under Bound Tariff");
+	    				specialCase = true; // XXX Remember that if i leave it false it won ONCE
+	    				
+	    				list.add(t);
+	    				tariffCustomerCount.remove(t);
+	    				TariffRevoke revoke = new TariffRevoke(brokerContext.getBroker(), t);
+	        	        brokerContext.sendMessage(revoke);
+	        	        
+	        		}
+    	        }
+	        	for(TariffSpecification t : list) {
+	        		tariffCharges.remove(t);
+	        	}
+	        }
     		
+	        boolean publishTariff = true;
     		//when we have  the monopoly revoke the cheapest tariff
-    		if(calculatePercentage(consumptionCustomers, consumptionCustomersTotal) > 85  ) {
+    		if(calculatePercentage(consumptionCustomers, consumptionCustomersTotal) > 65 && ! specialCase ) {
 				
 				TariffSpecification spec = findMyBestTariff(PowerType.CONSUMPTION);
-				System.out.println("Revoking Cheapest Tariff");
-    	        // revoke the old one
-				tariffCharges.remove(spec);
-				tariffCustomerCount.remove(spec);
-    	        TariffRevoke revoke = new TariffRevoke(brokerContext.getBroker(), spec);
-    	        brokerContext.sendMessage(revoke);
-    	        
-    	        //check that there is always a better tariff available
-    	        tempTariff = mutateConsumptionTariff(spec,false,calculateAvgRate(spec, false));   								
-				
-				if(!checkIfAlreadyExists(tempTariff))
-				{
-					
-        			//commit the new tariff
-        			tempTariff.addSupersedes(spec.getId());
-        	        tariffRepo.addSpecification(tempTariff);
-        	        tariffCharges.put(tempTariff,0d);
-        	        tariffCustomerCount.put(tempTariff,0);
-        	        brokerContext.sendMessage(tempTariff);
-				}else {
-					System.out.println("Not publishing");
+				if (spec == null ) {
+					if (-calculateAvgRate(spec, false) + findBestCompetitiveTariff(PowerType.CONSUMPTION, false ) > 0.01){
+						System.out.println("Revoking Cheapest Tariff");
+						
+						tariffCharges.remove(spec);
+						tariffCustomerCount.remove(spec);
+		    	        TariffRevoke revoke = new TariffRevoke(brokerContext.getBroker(), spec);
+		    	        brokerContext.sendMessage(revoke);
+		   	        
+		    	        //check that there is always a better tariff available
+		    	        tempTariff = mutateConsumptionTariff(spec,false,calculateAvgRate(spec, false));   								
+						
+						if(!checkIfAlreadyExists(tempTariff)) {
+							
+		        			//commit the new tariff
+		        	        tariffRepo.addSpecification(tempTariff);
+		        	        tariffCharges.put(tempTariff,0d);
+		        	        tariffCustomerCount.put(tempTariff,0);
+		        	        brokerContext.sendMessage(tempTariff);
+						}else {
+							System.out.println("Not publishing");
+						}
+					}else {
+						publishTariff = false;
+					}
+
 				}
+				
+				
+
 
     		}
     		
+    		if(publishTariff) {
+    			publishNewConsumptionTariff();
+    		}    			
     		
     		System.out.println("Other Tariffs-----------");
     		int cc = 0;
@@ -954,6 +934,52 @@ implements PortfolioManager, Initializable, Activatable
       System.out.println("-");
   }
   
+  private int publishNewConsumptionTariff() {
+		// find my tariff with the lower avg rate
+		double myBestRate = calculateAvgRate(findMyBestTariff(PowerType.CONSUMPTION),false);
+		double enemyBestRate = findBestCompetitiveTariff(PowerType.CONSUMPTION,false);
+		TariffSpecification tempTariff = new TariffSpecification(brokerContext.getBroker(), PowerType.CONSUMPTION);
+//		if(enemyBestRate == -1)
+//			enemyBestRate = 1.2*LowerBound; 
+		
+		if(calculatePercentage(consumptionCustomers,consumptionCustomersTotal) > 50 
+				&& (Math.abs(enemyBestRate - myBestRate) <0.01 || enemyBestRate == -1) 
+				&& remainingActiveTariff(PowerType.CONSUMPTION ) !=  0){
+//				&& LowerBound  > myBestRate) {
+			return -1;
+		}
+		
+//		if(calculatePercentage(consumptionCustomers,consumptionCustomersTotal) < 75 
+//				&& enemyBestRate < UpperBound ) {
+//			UpperBound += 0.015;
+//			
+//			if(UpperBound > LowerBound)
+//				UpperBound = LowerBound - 0.05; 
+//			System.out.println("UpperBound: " + UpperBound);
+//			
+//		//skip
+//		}else if (calculatePercentage(consumptionCustomers,consumptionCustomersTotal) >= 75 
+//				&&  enemyBestRate < UpperBound
+//				&& LowerBound  > myBestRate ) {
+//			return -1;
+//		}   				
+		
+		tempTariff = mutateConsumptionTariff(tempTariff,false,0);   				
+		
+		if(checkIfAlreadyExists(tempTariff)){
+			System.out.println("Not publishing");
+			return -1;
+		}
+			
+		//commit the new tariff
+      tariffRepo.addSpecification(tempTariff);
+      tariffCharges.put(tempTariff,0d);
+      tariffCustomerCount.put(tempTariff,0);
+      brokerContext.sendMessage(tempTariff);
+      
+      return 0;
+  }
+  
   private int remainingActiveTariff(PowerType pt) {
 	  int counter = 0;
 	  for(TariffSpecification t : tariffCharges.keySet()) {
@@ -964,16 +990,15 @@ implements PortfolioManager, Initializable, Activatable
 	  return counter;
   }
   
-  private boolean checkIfAlreadyExists(TariffSpecification spec) 
-  {
+  private boolean checkIfAlreadyExists(TariffSpecification spec) {
 	  double avgrate = calculateAvgRate(spec, false);
 	  
-	  for(TariffSpecification t : tariffCharges.keySet())
+	  for (TariffSpecification t : tariffCharges.keySet())
 	  {
-		  if(tariffCharges.get(t) <= 1 || t.getPowerType() != spec.getPowerType())
+		  if ((tariffCharges.get(t) <= 1 && tariffCharges.get(t) >= -1) || t.getPowerType() != spec.getPowerType())
 			  continue;
 		  
-		  if(Math.abs(avgrate - calculateAvgRate(t, false)) < 0.0075)
+		  if (Math.abs(avgrate - calculateAvgRate(t, false)) < 0.005)
 			  return true;
 			  
 	  }
@@ -1132,6 +1157,8 @@ implements PortfolioManager, Initializable, Activatable
   private double calculateAvgRate(TariffSpecification t,boolean weighted) {
 	  
 	  double sum = 0;
+	  if(t == null) 
+		  return 0;
 	  
 	  if(t.getRates() == null) 
 		  return 0;
@@ -1612,7 +1639,7 @@ implements PortfolioManager, Initializable, Activatable
 
 		  //always mutate down if avg is bigger than bound
 		  if(roll < 0.85 || temp < LowerBound || flag) {
-			  temp = temp + rnd.nextDouble()*ep + Parameters.LowerEpOffset;
+			  temp = temp + rnd.nextDouble()*ep ;//+ Parameters.LowerEpOffset;
 		  }else {
 			  temp = temp - rnd.nextDouble()*ep;
 		  }

@@ -41,11 +41,12 @@ def predictor(model,day,hour):
 		df.Hour[i] = hour
 		df.Day[i] = day
 
-
+	df = df.drop('Day', 1)
 
 	
 	#scl = MinMaxScaler()
 	X = df.values
+	#print(X)
 	#X = scl.fit_transform(X)
 	X = np.array(X)
 	
