@@ -29,10 +29,10 @@ public class Parameters {
 	  public static int timeslotMS = 3000;
 	    
 	  //retail module Parameters	
-	  public static int reevaluationCons = 12;
-	  public static int reevaluationStorage = 14*reevaluationCons;
-	  public static int reevaluationProduction = 200*reevaluationCons;
-	  public static int reevaluationInterruptible = 2 *reevaluationCons;
+	  public static int reevaluationCons = 6;
+	  public static int reevaluationStorage = 200*reevaluationCons;
+	  public static int reevaluationProduction = 400*reevaluationCons;
+	  public static int reevaluationInterruptible = 200 *reevaluationCons;
 	  	  
 	  public static int initialTariffBound = 365;
 	  public static int LATE_GAME = 1800;
@@ -46,15 +46,15 @@ public class Parameters {
 	  //Mutation Constants
 	  public static double Ebp = 4;
 	  public static double Ep = 0.15;
-	  public static double LowerEp = 0.007;
-	  public static double LowerEpOffset = 0.004;
+	  public static double LowerEp = 0.003;
+	  public static double LowerEpOffset = 0.002;
 //	  public static double LowerEpOffset = 0.014;
 	  public static double LowerBoundChangerFees = 50000;
 	  public static double LowerBoundStatic = - 0.15;
 	  public static double LowerBoundStaticAbsolute = - 0.115;
 //	  public static double LowerBoundStaticAbsolute = - 0.095;
 	  public static double UpperBoundStatic = - 0.25;
-	  public static double LowerBoundRollChance = 0.5;
+	  public static double LowerBoundRollChance = 0.85;
 	  public static double InterRateSpread = 0.015;
 	  
 	  public static double UpperBoundProduction =  0.015;
