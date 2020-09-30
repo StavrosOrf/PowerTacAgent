@@ -15,13 +15,18 @@
  */
 package org.powertac.samplebroker;
 
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.PropertySource;
+
 /**
  * This class holds all essentials parameters of the broker
  * 
  * @author Stavros Orfanoudakis
  */
-//mvn -Pcli -Dexec.args="--sim --boot-data boot1.xml --brokers st1,mc0"
 
+@Configuration
+@PropertySource("classpath:static.properties")
 public class Parameters {
 	
 	  public static String MyName = "mc0";
@@ -31,18 +36,9 @@ public class Parameters {
 	  //retail module Parameters	
 	  public static int reevaluationCons = 6;
 	  public static int reevaluationStorage = 200*reevaluationCons;
-	  public static int reevaluationProduction = 400*reevaluationCons;
+	  public static int reevaluationProduction = 6*reevaluationCons;
 	  public static int reevaluationInterruptible = 200 *reevaluationCons;
-	  	  
-	  public static int initialTariffBound = 365;
-	  public static int LATE_GAME = 1800;
-	  public static double LATE_GAME_ADDEED_PRICE = -0.8;
-	  
-	  //Database related parameters
-	  public static int NUM_OF_POPULATION = 50;
-	  public static double GroundLevelDecayFactor = 0.02;
-	  public static double TourLevelDecayFactor = 0.04;
-	  
+	  	    
 	  //Mutation Constants
 	  public static double Ebp = 4;
 	  public static double Ep = 0.15;
@@ -51,19 +47,25 @@ public class Parameters {
 //	  public static double LowerEpOffset = 0.014;
 	  public static double LowerBoundChangerFees = 50000;
 	  public static double LowerBoundStatic = - 0.15;
-	  public static double LowerBoundStaticAbsolute = - 0.115;
+	  @Value("${LowerBoundStaticAbsolute}")
+	  public double LowerBoundStaticAbsolute = - 0.115;
 //	  public static double LowerBoundStaticAbsolute = - 0.095;
-	  public static double UpperBoundStatic = - 0.25;
+	  public static double UpperBoundStatic = - 0.4;
 	  public static double LowerBoundRollChance = 0.85;
-	  public static double InterRateSpread = 0.015;
-	  
+	  public static double InterRateSpread = 0.015;	  	
 	  public static double UpperBoundProduction =  0.015;
 	  
+	  //Percentages % (0-100)
+	  @Value("${CONS_COUNT_UPPER_BOUND}")
+	  public double CONS_COUNT_UPPER_BOUND = 92.5;
+	  @Value("${CONS_COUNT_MIDDLE_BOUND}")
+	  public double CONS_COUNT_MIDDLE_BOUND = 65;
+	  @Value("${CONS_COUNT_LOWER_BOUND}")
+	  public double CONS_COUNT_LOWER_BOUND = 45;
+	 
 	  public static int Ecl = timeslotMS* (4* reevaluationCons/5)*10000;
 	  public static double Ereg = 0.05;
-	  
-	  public static double MIN_RATE_VALUE = -0.08; 
-	
+	  	
       //wholesale module Parameters
 	  public static int MAX_ITERATIONS = 1000;
 	  public static int NUM_OF_ACTIONS = 3; // must be > 1
@@ -88,4 +90,11 @@ public class Parameters {
 	  
 	  public static double sellLimitPriceMax = 70.0;    // other broker pays
 	  public static double sellLimitPriceMin = 10;    // other broker pays
+	  
+	  //Database related parameters
+	  public static int NUM_OF_POPULATION = 50;
+	  public static double GroundLevelDecayFactor = 0.02;
+	  public static double TourLevelDecayFactor = 0.04;
+
 }
+

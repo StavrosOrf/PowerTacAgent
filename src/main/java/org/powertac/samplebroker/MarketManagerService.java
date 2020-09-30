@@ -379,8 +379,7 @@ implements MarketManager, Initializable, Activatable
 	  ObjectToJson.tada(forecast);
 //	  energyPredictor.getKWhPredictorScript();
 
-	  int hour,day,counter = 0;
-	  double pr;
+	  int hour,day,counter = 0;	  
 	  int ts = forecast.getTimeslotIndex();
 	  double results[] = new double[24];
 	  hour = getTimeSlotHour(ts);

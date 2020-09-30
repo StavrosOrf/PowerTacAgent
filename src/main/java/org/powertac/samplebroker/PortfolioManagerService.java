@@ -54,6 +54,8 @@ import org.powertac.samplebroker.interfaces.MarketManager;
 import org.powertac.samplebroker.interfaces.PortfolioManager;
 import org.powertac.samplebroker.utility.ExcelWriter;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.stereotype.Service;
 
 /**
@@ -157,7 +159,9 @@ implements PortfolioManager, Initializable, Activatable
   
   private double totalEnergyused = 0;
   
-  private double LowerBoundABS = Parameters.LowerBoundStaticAbsolute;
+  Parameters params;
+  
+  private double LowerBoundABS ;
   private double LowerBound = Parameters.LowerBoundStatic;
   private double UpperBound = Parameters.UpperBoundStatic;
   
@@ -175,11 +179,13 @@ implements PortfolioManager, Initializable, Activatable
 
   @ConfigurableValue(valueType = "Double",
           description = "Fixed cost/kWh")
-  private double fixedPerKwh = -0.06;
+  private double fixedPerKwh = -0.06; 
 
   @ConfigurableValue(valueType = "Double",
           description = "Default daily meter charge")
   private double defaultPeriodicPayment = -1.0;
+
+private ApplicationContext ctx;
   
   /**
    * Default constructor.
@@ -204,7 +210,10 @@ implements PortfolioManager, Initializable, Activatable
     competingTariffs = new HashMap<>();
     tariffDB = new Database();
     
-//    tariffDB.resetGameLevel(2);
+	ctx = new AnnotationConfigApplicationContext(Parameters.class);
+	params = ctx.getBean(Parameters.class);
+	
+	LowerBoundABS= params.LowerBoundStaticAbsolute;
     
     Random ran = new Random();
     timer = ran.nextInt(Parameters.reevaluationCons + 2) + 4;
@@ -382,18 +391,6 @@ implements PortfolioManager, Initializable, Activatable
       tariffRepo.addSpecification(spec);
       triggerEvaluation = true;
       
-//      boolean isInitial = false;
-      
-//      if(timeslotRepo.currentTimeslot().getSerialNumber() < Parameters.initialTariffBound) {
-//    	  isInitial = true;
-//      }
-      
-//      for (int i = 0; i <3; i++) {
-//    	  tariffDB.addTariff(spec.getBroker().getUsername(),spec.getPowerType(),(int)spec.getMinDuration(),
-//				spec.getEarlyWithdrawPayment(),spec.getSignupPayment(), spec.getPeriodicPayment(),calculateAvgRate(spec,false),
-//				-1,i, spec.getRates(),spec.getRegulationRates(),timeslotRepo.currentTimeslot().getSerialNumber()
-//				,marketManager.getCompetitors(),isInitial);
-//      }
       System.out.print("New Tariff: ");
 	  printTariff(spec);	
     }
@@ -584,7 +581,7 @@ implements PortfolioManager, Initializable, Activatable
 		  triggerEvaluationTS = timeslotIndex ;
 		  triggerEvaluation = false;
 	  }
-	  
+	
 //	  ArrayList<TariffSpecification> t ;
 	  TariffSpecification tempTariff ;
 	  System.out.printf("-->Energy Usage: %.2f KWh   ts %d \n",totalEnergyUsed[timeslotIndex-1],timeslotIndex-1);
@@ -817,7 +814,7 @@ implements PortfolioManager, Initializable, Activatable
     		System.out.println("-- Total Consumers: " + consumptionCustomersTotal + " / " + consumptionCustomers + " \n");
     		
 	        //when we have  the monopoly revoke all tariffs that are below LowerBound
-	        if(calculatePercentage(consumptionCustomers, consumptionCustomersTotal) > 90  ) {
+	        if(calculatePercentage(consumptionCustomers, consumptionCustomersTotal) > params.CONS_COUNT_UPPER_BOUND  ) {
 	        	ArrayList<TariffSpecification> list = new ArrayList<TariffSpecification>();
 	        	double enemyBestRate = findBestCompetitiveTariff(PowerType.CONSUMPTION,false);
 	        	for (TariffSpecification t : tariffCharges.keySet()) {
@@ -840,7 +837,8 @@ implements PortfolioManager, Initializable, Activatable
     		
 	        boolean publishTariff = true;
     		//when we have  the monopoly revoke the cheapest tariff
-    		if (calculatePercentage(consumptionCustomers, consumptionCustomersTotal) > 80  ) {
+
+	        if (calculatePercentage(consumptionCustomers, consumptionCustomersTotal) > params.CONS_COUNT_MIDDLE_BOUND  ) {
 				
 				TariffSpecification spec = findMyBestTariff(PowerType.CONSUMPTION);
 				if (spec != null ) {
@@ -873,8 +871,7 @@ implements PortfolioManager, Initializable, Activatable
 //		        	        tariffRepo.addSpecification(tempTariff);
 //		        	        tariffCharges.put(tempTariff,0d);
 //		        	        tariffCustomerCount.put(tempTariff,0);
-//		        	        brokerContext.sendMessage(tempTariff);
-							
+//		        	        brokerContext.sendMessage(tempTariff);							
 						}else {
 							publishTariff = false;
 						}
@@ -884,20 +881,20 @@ implements PortfolioManager, Initializable, Activatable
 				}
     		}
     		
-    		if(calculatePercentage(consumptionCustomers, consumptionCustomersTotal) < 45  ) {
+    		if(calculatePercentage(consumptionCustomers, consumptionCustomersTotal) < params.CONS_COUNT_LOWER_BOUND  ) {
     			System.out.println("Under 45% Bound:");
-    			double enemyBestRate = findBestCompetitiveTariff(PowerType.CONSUMPTION,false);    			
+    			double enemyBestRate = findBestCompetitiveTariff(PowerType.CONSUMPTION,false);    	
     			System.out.println("Best Enemy AVG: " + enemyBestRate);
     			
     			TariffSpecification spec = findMyBestTariff(PowerType.CONSUMPTION);
     			if(calculateAvgRate(spec, false) > enemyBestRate) {
     				tempTariff = mutateConsumptionTariff(spec,false,calculateAvgRate(spec, false),true);
     			}else {
-    				tempTariff = mutateConsumptionTariff(spec,false,enemyBestRate,true);
+    				tempTariff = mutateConsumptionTariff(spec,false,enemyBestRate,true);    				
     			}
     	           								
 				
-				if(!checkIfAlreadyExists(tempTariff) || ((-enemyBestRate + calculateAvgRate(tempTariff, false )) < 0.01)) {		
+				if(!checkIfAlreadyExists(tempTariff) && ((-enemyBestRate + calculateAvgRate(tempTariff, false )) < 0.01)) {		
 					publishTariff = false;        			
         	        tariffRepo.addSpecification(tempTariff);
         	        tariffCharges.put(tempTariff,0d);
@@ -915,18 +912,35 @@ implements PortfolioManager, Initializable, Activatable
     		}    			
     		
     		System.out.println("Other Tariffs-----------");
-    		int cc = 0;
-    		for (PowerType pt : competingTariffs.keySet()) {
-    			for (TariffSpecification spec : competingTariffs.get(pt)) {
-//        			if(pt == PowerType.CONSUMPTION && spec.getBroker().getUsername().equals("a")) {
-//        				cc ++;
-//        				if(cc > 2) {
-//        					continue;
-//        				}
-//        			}
-    				printTariff(spec);      			
+    		if(timeslotIndex < 1400) {
+        		int cc = 0;
+        		for (PowerType pt : competingTariffs.keySet()) {
+        			for (TariffSpecification spec : competingTariffs.get(pt)) {
+            			if(pt == PowerType.CONSUMPTION && spec.getBroker().getUsername().equals("a")) {
+            				cc ++;
+            				if(cc > 2) {
+            					continue;
+            				}
+            			}
+        				printTariff(spec);      			
+            		}
+        		}	
+    		}else {
+//        		int cc = 0;
+        		for (PowerType pt : competingTariffs.keySet()) {
+        			for (TariffSpecification spec : competingTariffs.get(pt)) {
+//            			if(pt == PowerType.CONSUMPTION && spec.getBroker().getUsername().equals("a")) {
+//            				cc ++;
+//            				if(cc > 2) {
+//            					continue;
+//            				}
+//            			}
+        				printTariff(spec);      			
+            		}
         		}
     		}
+
+
     		totalEnergyused = 0;
     		marketManager.setTotalBalancingEnergy(0);
     		marketManager.setTotalDistributionEnergy(0);
@@ -1148,17 +1162,23 @@ implements PortfolioManager, Initializable, Activatable
 		  }
 		  System.out.println("Before: " + LowerBoundABS);
 		  System.out.println("Competitors: " + marketManager.getCompetitors());
-		  if(fees / marketManager.getCompetitors() > Math.abs(totalFeesMine)) {
-			  LowerBoundABS += 0.01;
-		  }else {
-			  LowerBoundABS -= 0.01;
-			  if(LowerBoundABS < LowerBound)
-				  LowerBoundABS -= 0.01;
-		  }
-			  
+//		  if(fees / marketManager.getCompetitors() > Math.abs(totalFeesMine)) {
+//			  LowerBoundABS += 0.01;
+//		  }else {
+//			  LowerBoundABS -= 0.01;
+//			  if(LowerBoundABS < LowerBound)
+//				  LowerBoundABS -= 0.01;
+//		  }
+		  ctx = new AnnotationConfigApplicationContext(Parameters.class);
+		  params = ctx.getBean(Parameters.class);
+		  LowerBoundABS = params.LowerBoundStaticAbsolute;
+		  
 		  System.out.printf("LowerBoundABS: %.3f \tLower Bound: %.3f \t Upper Bound: %.3f \t TS: %d\n",LowerBoundABS,LowerBound,UpperBound,timeslotIndex);		  
+		  System.out.println(params.CONS_COUNT_LOWER_BOUND);
+		  System.out.println(params.CONS_COUNT_MIDDLE_BOUND);
+		  System.out.println(params.CONS_COUNT_UPPER_BOUND);
 	  }
-	  
+
 
 	  marketManager.resetCapacityFees();
   }
@@ -1185,7 +1205,7 @@ implements PortfolioManager, Initializable, Activatable
   
   //calculate avg rate of a tariff weighted or normal average
   private double calculateAvgRate(TariffSpecification t,boolean weighted) {
-	  
+	  double[][] rates = new double[7][24];
 	  double sum = 0;
 	  if(t == null) 
 		  return 0;
@@ -1202,14 +1222,37 @@ implements PortfolioManager, Initializable, Activatable
 			  return sum / n1;
 	  }
 	  
+//	  for (Rate r : t.getRates()) {
+//		  if (r.getWeeklyBegin() == -1){
+//			  
+//		  }
+//		  for (int i = r.getWeeklyBegin(); i < r.getWeeklyEnd() + 1; i++) {
+//			  if (r.getWeeklyBegin() == -1){
+//				  for (int j = 0; j < 24; j++) {
+//					  rates[i][j] = r.getMinValue();
+//				  }
+//			  }
+//			  for (int j = r.getDailyBegin(); j < r.getDailyEnd() + 1; j++) {
+//				  rates[i][j] = r.getMinValue();
+//			  }
+//		  }
+//	  }
+//	  
+//	  for (int i = 1; i < 8; i++) {
+//		  for (int j = 0; j < 24; j++) {
+//			  if(rates[i][j] == 0 ) {
+//				  System.out.println(".");
+//			  }
+//				  
+//			  sum += rates[i][j];
+//		  }
+//	  }
+//	  
+//	  return sum/168;
 	  if(t.getRates().get(0).getWeeklyBegin() < 6)
 		  return t.getRates().get(0).getMinValue() / weightWd[t.getRates().get(0).getDailyBegin()];
 	  else
-		  return t.getRates().get(0).getMinValue() / weightWe[t.getRates().get(0).getDailyBegin()];
-	  
-
-	  
-	  
+		  return t.getRates().get(0).getMinValue() / weightWe[t.getRates().get(0).getDailyBegin()];	  	  
 	  
   }
   /*
@@ -1344,9 +1387,6 @@ implements PortfolioManager, Initializable, Activatable
 		  else
 			  r.withDailyEnd(0);
 		  
-		  if(wWe[i] > Parameters.MIN_RATE_VALUE)
-			  r.withMinValue(Parameters.MIN_RATE_VALUE); 
-
 		  r.withMinValue(wWe[i]);		
 //		  r.withMinValue(avg);		
 
@@ -1708,8 +1748,8 @@ implements PortfolioManager, Initializable, Activatable
 //		  temp = LowerBoundABS - rnd.nextDouble()* Parameters.LowerEpOffset;
 //	  }
 
-	  if(temp > Parameters.LowerBoundStaticAbsolute) {
-		  temp = Parameters.LowerBoundStaticAbsolute - rnd.nextDouble()* Parameters.LowerEpOffset;
+	  if(temp > LowerBoundABS) {
+		  temp = LowerBoundABS - rnd.nextDouble()* Parameters.LowerEpOffset;
 	  }
 	  
 	  spec = produceTOURates(spec,temp,0);
