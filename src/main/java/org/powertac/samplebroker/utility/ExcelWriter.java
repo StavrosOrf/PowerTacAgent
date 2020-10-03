@@ -17,6 +17,7 @@ public class ExcelWriter {
 	XSSFSheet sheet;
 	String fileName;
 	FileOutputStream outputStream;
+	String os ;
 	 
 	public ExcelWriter(String fileName) {
 		workbook = new XSSFWorkbook();
@@ -40,7 +41,13 @@ public class ExcelWriter {
 		
 		
         try{
-        	outputStream = new FileOutputStream("log\\predictor\\"+fileName+ ".logs.xlsx");
+        	os = System.getProperty("os.name");
+        	if(os.equals("Windows 10")) {
+        		outputStream = new FileOutputStream("log\\predictor\\"+fileName+ ".logs.xlsx");	
+        	}else {
+        		outputStream = new FileOutputStream("../predictor/"+fileName+ ".logs.xlsx");
+        	}
+        	
             workbook.write(outputStream);
         }catch (Exception e) {
 			System.out.println(e);
@@ -59,7 +66,11 @@ public class ExcelWriter {
 		
         try{
         	if(save) {
-        		outputStream = new FileOutputStream("log\\predictor\\"+fileName+ ".logs.xlsx");
+            	if(os.equals("Windows 10")) {
+            		outputStream = new FileOutputStream("log\\predictor\\"+fileName+ ".logs.xlsx");	
+            	}else {
+            		outputStream = new FileOutputStream("../predictor/"+fileName+ ".logs.xlsx");	
+            	}
         		workbook.write(outputStream);
         	}
         }catch (Exception e) {

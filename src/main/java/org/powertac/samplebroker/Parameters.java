@@ -36,7 +36,7 @@ public class Parameters {
 	  //retail module Parameters	
 	  public static int reevaluationCons = 6;
 	  public static int reevaluationStorage = 200*reevaluationCons;
-	  public static int reevaluationProduction = 6*reevaluationCons;
+	  public static int reevaluationProduction = 4*reevaluationCons;
 	  public static int reevaluationInterruptible = 200 *reevaluationCons;
 	  	    
 	  //Mutation Constants

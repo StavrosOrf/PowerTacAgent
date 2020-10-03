@@ -210,10 +210,18 @@ implements MarketManager, Initializable, Activatable
     minMWh = Math.max(minMWh, comp.getMinimumOrderQuantity());
     energyPredictor = new EnergyPredictor();
     
-	try {
-	    FileOutputStream file = new FileOutputStream("..\\logs\\" + comp.getName() + ".output.txt");
-	    TeePrintStream tee = new TeePrintStream(file, System.out);
-	    System.setOut(tee);
+	try {			   
+    	String os = System.getProperty("os.name");
+    	if(os.equals("Windows 10")) {
+    		FileOutputStream file = new FileOutputStream("..\\logs\\" + comp.getName() + ".output.txt");
+    	    TeePrintStream tee = new TeePrintStream(file, System.out);
+    	    System.setOut(tee);
+    	}else {
+    		FileOutputStream file = new FileOutputStream("../logs/" + comp.getName() + ".output.txt");
+    	    TeePrintStream tee = new TeePrintStream(file, System.out);
+    	    System.setOut(tee);
+    	}
+
 	    excelWriter = new ExcelWriter(comp.getName());
 	    
 	} catch (FileNotFoundException e) {
@@ -499,7 +507,8 @@ implements MarketManager, Initializable, Activatable
 //	}
 
     log.debug(" Current timeslot is " + timeslotIndex);
-    System.out.println("\n|-----------------------------------------------------------|  Current timeslot is " + timeslotIndex 
+    System.out.println("\n|---------------------------------------------------------------------------"
+    		+ "---------------------------------------------|  Current timeslot is " + timeslotIndex 
     			+" |  Day: "+ getTimeSlotDay(timeslotIndex) + "  Hour: " + getTimeSlotHour(timeslotIndex));
     for (Timeslot timeslot : timeslotRepo.enabledTimeslots()) {
       printAboutTimeslot(timeslot);

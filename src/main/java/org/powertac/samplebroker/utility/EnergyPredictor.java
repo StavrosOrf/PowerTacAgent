@@ -16,6 +16,7 @@
 package org.powertac.samplebroker.utility;
 
 import java.net.*;
+import java.util.Random;
 import java.io.*;
 
 import org.deeplearning4j.nn.modelimport.keras.KerasModelImport;
@@ -45,55 +46,59 @@ public class EnergyPredictor {
 	}
 
 	public static void main(String args[]) {
+		Random rnd = new Random();
+//		 System.getProperties().list(System.out);
+		double perPay = (rnd.nextInt(5) + 10.0) / 100; 
+		System.out.println("PerPay " + perPay);
 //		double d = 0;
-		double result[] = new double[24];
-	    Socket clientSocket;
-	    PrintWriter out;
-	    BufferedReader in;
-	    int i= 0,counter = 0;
-	    while(i < 1) {
-	    counter = 0;
-		try {
-			try {
-				Thread.sleep(1000);
-			} catch (InterruptedException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-			System.out.println("count: " + i);
-			clientSocket = new Socket("localhost", Parameters.Predictor_Port);
-			clientSocket.setSoTimeout(1500);
-		    out = new PrintWriter(clientSocket.getOutputStream(), true);
-		    in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
-		    System.out.println("sending");
-	        out.println("7 15 " + i);
-	        System.out.println("waiting..");
-	        String resp;
-	        while((resp = in.readLine()) != null) {
-//		        System.out.println("====" + resp);
-		        if(resp.equals("-")) {
-		        	System.out.println("Exiting..");
-		        	clientSocket.close();
-		        	if(out != null) {
-		        		out.close();
-		        		System.out.print("c1");
-		        	}
-		        	if(in != null) {
-		        		in.close();
-		        		System.out.print("c2");
-		        	}
-		        	break;
-//		        	return;
-		        }else {
-		        	resp = resp.replaceAll("\\[", "");
-		        	resp = resp.replaceAll("\\]", "");
-		        	resp = resp.trim();		        	
-		        	
-		        	String arr[] = resp.split("\\s+");
-		        	for(String s : arr) {
-		        		result[counter] = Double.parseDouble(s);
-		        	    counter ++;
-		        	}
+//		double result[] = new double[24];
+//	    Socket clientSocket;
+//	    PrintWriter out;
+//	    BufferedReader in;
+//	    int i= 0,counter = 0;
+//	    while(i < 1) {
+//	    counter = 0;
+//		try {
+//			try {
+//				Thread.sleep(1000);
+//			} catch (InterruptedException e) {
+//				// TODO Auto-generated catch block
+//				e.printStackTrace();
+//			}
+//			System.out.println("count: " + i);
+//			clientSocket = new Socket("localhost", Parameters.Predictor_Port);
+//			clientSocket.setSoTimeout(1500);
+//		    out = new PrintWriter(clientSocket.getOutputStream(), true);
+//		    in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+//		    System.out.println("sending");
+//	        out.println("7 15 " + i);
+//	        System.out.println("waiting..");
+//	        String resp;
+//	        while((resp = in.readLine()) != null) {
+////		        System.out.println("====" + resp);
+//		        if(resp.equals("-")) {
+//		        	System.out.println("Exiting..");
+//		        	clientSocket.close();
+//		        	if(out != null) {
+//		        		out.close();
+//		        		System.out.print("c1");
+//		        	}
+//		        	if(in != null) {
+//		        		in.close();
+//		        		System.out.print("c2");
+//		        	}
+//		        	break;
+////		        	return;
+//		        }else {
+//		        	resp = resp.replaceAll("\\[", "");
+//		        	resp = resp.replaceAll("\\]", "");
+//		        	resp = resp.trim();		        	
+//		        	
+//		        	String arr[] = resp.split("\\s+");
+//		        	for(String s : arr) {
+//		        		result[counter] = Double.parseDouble(s);
+//		        	    counter ++;
+//		        	}
 		        	
 //		        	if(counter == 0) {
 //		        		resp = resp.split("\\[",2)[1].split("\\[",2)[1];
@@ -126,25 +131,25 @@ public class EnergyPredictor {
 	                
 	                
 //	                d =  Double.parseDouble(s);
-		        }
-
-	        }
-
-
-		} catch (UnknownHostException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		i++;
-	    }
-	    
-		  for(double dd : result) {
-			  System.out.print(dd + "| ");
-		  }
-	    System.out.println("It seems like read timed out");
+//		        }
+//
+//	        }
+//
+//
+//		} catch (UnknownHostException e) {
+//			// TODO Auto-generated catch block
+//			e.printStackTrace();
+//		} catch (IOException e) {
+//			// TODO Auto-generated catch block
+//			e.printStackTrace();
+//		}
+//		i++;
+//	    }
+//	    
+//		  for(double dd : result) {
+//			  System.out.print(dd + "| ");
+//		  }
+//	    System.out.println("It seems like read timed out");
 
 		/*
     	String simpleMlp;
