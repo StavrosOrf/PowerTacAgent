@@ -49,7 +49,7 @@ public class Parameters {
 	  public static double LowerBoundStatic = - 0.15;
 	  @Value("${LowerBoundStaticAbsolute}")
 	  public double LowerBoundStaticAbsolute = - 0.115;
-//	  public static double LowerBoundStaticAbsolute = - 0.095;
+	  public static double EwpBound = - 12;
 	  public static double UpperBoundStatic = - 0.4;
 	  public static double LowerBoundRollChance = 0.85;
 	  public static double InterRateSpread = 0.015;	  	
@@ -60,6 +60,8 @@ public class Parameters {
 	  public double CONS_COUNT_UPPER_BOUND = 92.5;
 	  @Value("${CONS_COUNT_MIDDLE_BOUND}")
 	  public double CONS_COUNT_MIDDLE_BOUND = 65;
+	  @Value("${CONS_COUNT_EQUAL_BOUND}")
+	  public double CONS_COUNT_EQUAL_BOUND = 55;
 	  @Value("${CONS_COUNT_LOWER_BOUND}")
 	  public double CONS_COUNT_LOWER_BOUND = 45;
 	 
