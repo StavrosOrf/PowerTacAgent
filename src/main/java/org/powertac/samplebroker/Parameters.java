@@ -32,6 +32,8 @@ public class Parameters {
 	  public static String MyName = "mc0";
 	  public static int Predictor_Port = 8098;
 	  public static int timeslotMS = 3000;
+	  
+	  public static int batchSize = 24;
 	    
 	  //retail module Parameters	
 	  public static int reevaluationCons = 6;
@@ -49,6 +51,8 @@ public class Parameters {
 	  public static double LowerBoundStatic = - 0.15;
 	  @Value("${LowerBoundStaticAbsolute}")
 	  public double LowerBoundStaticAbsolute = - 0.115;
+	  @Value("${newRateCalculatorEnabled}")
+	  public int newRateCalculatorEnabled = 0;
 	  public static double EwpBound = - 12;
 	  public static double UpperBoundStatic = - 0.4;
 	  public static double LowerBoundRollChance = 0.85;

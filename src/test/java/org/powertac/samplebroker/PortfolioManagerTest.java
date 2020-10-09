@@ -32,6 +32,7 @@ import org.powertac.common.enumerations.PowerType;
 import org.powertac.common.msg.CustomerBootstrapData;
 import org.powertac.common.repo.CustomerRepo;
 import org.powertac.common.repo.TimeslotRepo;
+import org.powertac.samplebroker.PortfolioManagerService;
 import org.powertac.samplebroker.core.BrokerPropertiesService;
 import org.powertac.samplebroker.core.PowerTacBroker;
 import org.springframework.test.util.ReflectionTestUtils;

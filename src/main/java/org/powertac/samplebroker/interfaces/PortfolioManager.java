@@ -15,6 +15,8 @@
  */
 package org.powertac.samplebroker.interfaces;
 
+import org.powertac.samplebroker.WeatherData;
+
 /**
  * Interface for portfolio manager, makes usage statistics available.
  * @author John Collins
@@ -26,4 +28,5 @@ public interface PortfolioManager
    * index (normally a timeslot serial number).
    */
   public double collectUsage (int index); 
+  public void setBatchWeather(WeatherData w);
 }

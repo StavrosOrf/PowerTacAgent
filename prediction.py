@@ -21,7 +21,7 @@ def predictor(model,day,hour):
 	
 	hours_look_back = 24
 	
-	file = open('temp.json')
+	file = open('tempFiles/forecast.online.json')
 	data = json.load(file)
 	#print (data["predictions"])
 	df = pd.DataFrame(data["predictions"])
