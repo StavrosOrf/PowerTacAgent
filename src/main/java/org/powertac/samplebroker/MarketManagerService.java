@@ -43,6 +43,7 @@ import org.powertac.common.msg.BalanceReport;
 import org.powertac.common.msg.DistributionReport;
 import org.powertac.common.msg.MarketBootstrapData;
 import org.powertac.common.repo.TimeslotRepo;
+import org.powertac.samplebroker.assistingclasses.WeatherData;
 import org.powertac.samplebroker.core.BrokerPropertiesService;
 import org.powertac.samplebroker.interfaces.Activatable;
 import org.powertac.samplebroker.interfaces.BrokerContext;
@@ -142,8 +143,8 @@ implements MarketManager, Initializable, Activatable
   private double totalWholesaleCosts[] = new double[2];
   private double totalWholesaleEnergy[] = new double[2];
   
-  private double totalPredictedEnergyKWH = 0;
-  private WeatherReport prevWeatherReport = null;
+//  private double totalPredictedEnergyKWH = 0;
+//  private WeatherReport prevWeatherReport = null;
   
 //  private ArrayList<>
   
@@ -155,8 +156,6 @@ implements MarketManager, Initializable, Activatable
   
   private ArrayList<WeatherData> weatherDatas;
 
-  private int ccc = 0;
-  
   public MarketManagerService ()
   {
     super();
@@ -232,8 +231,7 @@ implements MarketManager, Initializable, Activatable
 
 	    excelWriter = new ExcelWriter(comp.getName());
 	    
-	} catch (FileNotFoundException e) {
-		// TODO Auto-generated catch block
+	} catch (FileNotFoundException e) {		
 		System.out.println("error writing to file");
 		e.printStackTrace();
 	}
@@ -259,6 +257,7 @@ implements MarketManager, Initializable, Activatable
 	  totalBalancingEnergy += tx.getKWh();
 	  totalBalancingCosts += tx.getCharge();
 	  log.info("Balancing tx: " + tx.getCharge());
+	  portfolioManager.setBalancingCosts(tx.getCharge());
   }
 
   /**
@@ -391,13 +390,22 @@ implements MarketManager, Initializable, Activatable
    */
   public synchronized void handleMessage (WeatherForecast forecast)
   {
-//	  System.out.println(forecast.toString());
-	  ObjectToJson.toJSON(forecast);
-//	  energyPredictor.getKWhPredictorScript();
-
 	  int hour,day,counter = 0;	  
 	  int ts = forecast.getTimeslotIndex();
 	  double results[] = new double[24];
+	  
+	  ArrayList<WeatherData> weatherlist = new ArrayList<WeatherData>();
+	  
+	  for(WeatherForecastPrediction f : forecast.getPredictions()) {
+		  
+		  hour = getTimeSlotHour(ts + f.getForecastTime());
+		  day = getTimeSlotDay(ts + f.getForecastTime());
+		  
+		  weatherlist.add(new WeatherData(day, hour, ts+f.getForecastTime(), f.getTemperature(), f.getWindSpeed(), f.getWindDirection(), f.getCloudCover()));
+	  }
+	  ObjectToJson.toJSON(forecast);
+	  ObjectToJson.toJSONForecast(weatherlist);
+	  
 	  hour = getTimeSlotHour(ts);
 	  day = getTimeSlotDay(ts);
 	  
@@ -453,11 +461,11 @@ implements MarketManager, Initializable, Activatable
 	  }	  
 	  
 	  if(report.getTimeslotIndex()< 360) {
-		  prevWeatherReport = report;
+//		  prevWeatherReport = report;
 		  return;
 	  }
 	  
-	  portfolioManager.setBatchWeather(w);
+//	  portfolioManager.setBatchWeather(w);
 	  
 	  if((report.getTimeslotIndex() - 360) % 25 == 0 )
 		  excelWriter.writeCell(0,0,0,true);
@@ -476,7 +484,7 @@ implements MarketManager, Initializable, Activatable
 	  
 	  excelWriter.writeCell(dr.getTimeslot()-360,28,dr.getTotalConsumption(),false);
 //	  System.out.println("Weather| ts: " + report.getTimeslotIndex() +" " + report.getCloudCover() );
-	  prevWeatherReport = report;
+//	  prevWeatherReport = report;
   }
 
   /**
@@ -511,8 +519,7 @@ implements MarketManager, Initializable, Activatable
 //	}
 	
     log.debug(" Current timeslot is " + timeslotIndex);
-    System.out.println("\n|---------------------------------------------------------------------------"
-    		+ "---------------------------------------------|  Current timeslot is " + timeslotIndex 
+    System.out.println("\n|------------------------------------|  Current timeslot is " + timeslotIndex 
     			+" |  Day: "+ getTimeSlotDay(timeslotIndex) + "  Hour: " + getTimeSlotHour(timeslotIndex));
     for (Timeslot timeslot : timeslotRepo.enabledTimeslots()) {
       printAboutTimeslot(timeslot);
@@ -524,8 +531,6 @@ implements MarketManager, Initializable, Activatable
       submitBidMCTS(neededKWh,timeslotIndex, timeslot.getSerialNumber());
  
     }
-//    System.out.println("|_____________________|");
-//    	System.out.println("--");
   }
   void printAboutTimeslot(Timeslot t) {
 	  if(WH_PRINT_ON)
@@ -561,7 +566,7 @@ implements MarketManager, Initializable, Activatable
     double neededMWh = neededKWh / 1000.0;
     //find how many MWH are already available in given timeslot
     MarketPosition posn = broker.getBroker().findMarketPositionByTimeslot(timeslotBidding);
-    
+    double offset = portfolioManager.getParams().MarketManagerOffset;
     
     if (posn != null)
       neededMWh -= posn.getOverallBalance();
@@ -578,10 +583,9 @@ implements MarketManager, Initializable, Activatable
     Double limitPrice = computeLimitPrice(timeslotBidding, neededMWh);
     //==========================================================================================	
     
-    //TODO check if needed is negative or positive
     if(neededMWh < 0) {
         log.info("new order for " + neededMWh + " at " + limitPrice + " in timeslot " + timeslotBidding);
-        Order order = new Order(broker.getBroker(), timeslotBidding, neededMWh, limitPrice + 30 );
+        Order order = new Order(broker.getBroker(), timeslotBidding, neededMWh, limitPrice + offset );
         
         lastOrder.put(timeslotBidding, order);
         broker.sendMessage(order);
@@ -745,7 +749,7 @@ implements MarketManager, Initializable, Activatable
     // ==========================================================================================	
     log.info("new order for " + neededMWh + " at " + limitPrice + " in timeslot " + timeslotBidding);
 //    Order order = new Order(broker.getBroker(), timeslotBidding, neededMWh, limitPrice);
-    order = new Order(broker.getBroker(), timeslotBidding, neededMWh, bestActionNode.actionID-30);
+    order = new Order(broker.getBroker(), timeslotBidding, neededMWh, bestActionNode.actionID - offset);
  
     lastOrder.put(timeslotBidding, order);
     broker.sendMessage(order);

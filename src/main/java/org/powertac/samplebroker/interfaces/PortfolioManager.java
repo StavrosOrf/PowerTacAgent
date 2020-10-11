@@ -15,7 +15,8 @@
  */
 package org.powertac.samplebroker.interfaces;
 
-import org.powertac.samplebroker.WeatherData;
+import org.powertac.samplebroker.Parameters;
+import org.powertac.samplebroker.assistingclasses.WeatherData;
 
 /**
  * Interface for portfolio manager, makes usage statistics available.
@@ -28,5 +29,7 @@ public interface PortfolioManager
    * index (normally a timeslot serial number).
    */
   public double collectUsage (int index); 
-  public void setBatchWeather(WeatherData w);
+//  public void setBatchWeather(WeatherData w);
+  public void setBalancingCosts(double imbalance);
+  public Parameters getParams();
 }

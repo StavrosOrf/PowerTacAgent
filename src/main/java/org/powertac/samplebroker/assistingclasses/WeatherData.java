@@ -1,4 +1,4 @@
-package org.powertac.samplebroker;
+package org.powertac.samplebroker.assistingclasses;
 
 public class WeatherData {
 

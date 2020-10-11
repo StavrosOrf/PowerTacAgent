@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.powertac.samplebroker;
+package org.powertac.samplebroker.utility;
 
 import java.sql.Connection;
 import java.sql.Driver;
@@ -32,6 +32,7 @@ import org.powertac.common.Rate;
 import org.powertac.common.RegulationRate;
 import org.powertac.common.TariffSpecification;
 import org.powertac.common.enumerations.PowerType;
+import org.powertac.samplebroker.Parameters;
 
 /**
  * This class manages the database instant and contains all the
@@ -351,7 +352,8 @@ public class Database {
 			+"' and broker = '"+ Broker +"' and level = " + level + " and isInitial = " + isInitial 
 			+ " and brokers = " + numberOfBrokers + "  order by fitnessValue asc ");
 			
-			if(Broker.equals(Parameters.MyName)) {
+			//changed myName
+			if(Broker.equals("mc0")) {
 				rs.next();
 				id =rs.getInt(2);
 			}else {

@@ -1,4 +1,4 @@
-package org.powertac.samplebroker;
+package org.powertac.samplebroker.assistingclasses;
 
 import org.powertac.common.enumerations.PowerType;
 import org.powertac.common.xml.DoubleArrayConverter;

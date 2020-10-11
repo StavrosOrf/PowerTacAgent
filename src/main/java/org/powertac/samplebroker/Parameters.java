@@ -28,16 +28,18 @@ import org.springframework.context.annotation.PropertySource;
 @Configuration
 @PropertySource("classpath:static.properties")
 public class Parameters {
-	
-	  public static String MyName = "mc0";
+		  
 	  public static int Predictor_Port = 8098;
-	  public static int timeslotMS = 3000;
+	  public static int timeslotMS = 5000;
+	  
+	  @Value("${printRatesEnabled}")
+	  public int printRatesEnabled = 0;
 	  
 	  public static int batchSize = 24;
-	    
+	  
 	  //retail module Parameters	
 	  public static int reevaluationCons = 6;
-	  public static int reevaluationStorage = 200*reevaluationCons;
+	  public static int reevaluationStorage = 250*reevaluationCons;
 	  public static int reevaluationProduction = 4*reevaluationCons;
 	  public static int reevaluationInterruptible = 200 *reevaluationCons;
 	  	    
@@ -53,6 +55,8 @@ public class Parameters {
 	  public double LowerBoundStaticAbsolute = - 0.115;
 	  @Value("${newRateCalculatorEnabled}")
 	  public int newRateCalculatorEnabled = 0;
+	  @Value("${productionTariffsEnabled}")
+	  public int productionTariffsEnabled = 1;
 	  public static double EwpBound = - 12;
 	  public static double UpperBoundStatic = - 0.4;
 	  public static double LowerBoundRollChance = 0.85;
@@ -90,12 +94,14 @@ public class Parameters {
 	  public static double D_MIN = -1; // Δ min minimum price multiplier , TBChanged
 	  public static double D_MAX = 1; // Δ max maximum price multiplier , TBChanged
 	  
+	  @Value("${MarketManagerOffset}")
+	  public double MarketManagerOffset = 30;
 	// max and min offer prices
-	  public static double buyLimitPriceMin = - 50;
+	  public static double buyLimitPriceMin = - 70;
 	  public static double buyLimitPriceMax = - 1;
 	  
 	  public static double sellLimitPriceMax = 70.0;    // other broker pays
-	  public static double sellLimitPriceMin = 10;    // other broker pays
+	  public static double sellLimitPriceMin = 0.5;    // other broker pays
 	  
 	  //Database related parameters
 	  public static int NUM_OF_POPULATION = 50;

@@ -9,11 +9,39 @@ import org.codehaus.jackson.JsonGenerationException;
 import org.codehaus.jackson.map.JsonMappingException;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.powertac.common.WeatherForecast;
-import org.powertac.samplebroker.Customer;
-import org.powertac.samplebroker.TimeslotUsage;
-import org.powertac.samplebroker.WeatherData; 
+import org.powertac.samplebroker.assistingclasses.Customer;
+import org.powertac.samplebroker.assistingclasses.CustomerUsage;
+import org.powertac.samplebroker.assistingclasses.TimeslotUsage;
+import org.powertac.samplebroker.assistingclasses.WeatherData; 
 
 public class ObjectToJson { 
+	
+	public static void toJSONForecast(ArrayList<WeatherData> f) {
+		org.codehaus.jackson.map.ObjectWriter ow = new ObjectMapper().writer().withDefaultPrettyPrinter();
+		String json;
+		try {
+			json = ow.writeValueAsString(f);
+	    	String os = System.getProperty("os.name");
+	    	if(os.equals("Windows 10")) {
+	    		BufferedWriter writer = new BufferedWriter(new FileWriter("tempFiles\\forecast24.online.json"));
+	    		writer.write(json);		    
+			    writer.close();
+	    	}else {
+	    		BufferedWriter writer = new BufferedWriter(new FileWriter("tempFiles/forecast24.online.json"));
+	    		writer.write(json);		    
+			    writer.close();
+	    	}
+		} catch (JsonGenerationException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (JsonMappingException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
 	
 	public static void toJSON(WeatherForecast f) {
 		org.codehaus.jackson.map.ObjectWriter ow = new ObjectMapper().writer().withDefaultPrettyPrinter();
@@ -54,6 +82,34 @@ public class ObjectToJson {
 			    writer.close();
 	    	}else {
 	    		BufferedWriter writer = new BufferedWriter(new FileWriter("tempFiles/customers.boot.json"));
+	    		writer.write(json);		    
+			    writer.close();
+	    	}			
+		    
+		} catch (JsonGenerationException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (JsonMappingException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
+	
+	public static void toJSONSubs(ArrayList<CustomerUsage> c) {
+		org.codehaus.jackson.map.ObjectWriter ow = new ObjectMapper().writer().withDefaultPrettyPrinter();
+		String json;
+		try {
+			json = ow.writeValueAsString(c);			
+	    	String os = System.getProperty("os.name");
+	    	if(os.equals("Windows 10")) {
+	    		BufferedWriter writer = new BufferedWriter(new FileWriter("tempFiles\\subs.online.json"));
+	    		writer.write(json);		    
+			    writer.close();
+	    	}else {
+	    		BufferedWriter writer = new BufferedWriter(new FileWriter("tempFiles/subs.online.json"));
 	    		writer.write(json);		    
 			    writer.close();
 	    	}			
