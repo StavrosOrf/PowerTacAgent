@@ -53,7 +53,7 @@ import org.powertac.samplebroker.interfaces.MarketManager;
 import org.powertac.samplebroker.interfaces.PortfolioManager;
 import org.powertac.samplebroker.utility.Node;
 import org.powertac.samplebroker.utility.ObjectToJson;
-import org.powertac.samplebroker.utility.EnergyPredictor;
+//import org.powertac.samplebroker.utility.EnergyPredictor;
 import org.powertac.samplebroker.utility.ExcelWriter;
 import org.powertac.samplebroker.utility.TeePrintStream;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -84,7 +84,7 @@ implements MarketManager, Initializable, Activatable
   @Autowired
   private ContextManager contextManager;
   
-  private EnergyPredictor energyPredictor;
+//  private EnergyPredictor energyPredictor;
   private ExcelWriter excelWriter;
 
   // ------------ Configurable parameters --------------
@@ -215,7 +215,7 @@ implements MarketManager, Initializable, Activatable
   public synchronized void handleMessage (Competition comp)
   {
     minMWh = Math.max(minMWh, comp.getMinimumOrderQuantity());
-    energyPredictor = new EnergyPredictor();
+//    energyPredictor = new EnergyPredictor();
     
 	try {			   
     	String os = System.getProperty("os.name");
@@ -409,8 +409,16 @@ implements MarketManager, Initializable, Activatable
 	  hour = getTimeSlotHour(ts);
 	  day = getTimeSlotDay(ts);
 	  
-	  results = energyPredictor.getKWhPredictionLSTMClient(hour,day);
+//	  results = energyPredictor.getKWhPredictionLSTMClient(hour,day);
+
 	  
+//	  System.out.println("");
+	  results = rndPredictor();
+//	  System.out.print("Rnd predictor: ");
+//	  for(double d : results) {
+//		  System.out.printf(" % .2f",d );
+//	  }
+//	  System.out.println("");
 //	  results = energyPredictor.getKWhPredictorLSTM(hour ,day,forecast);
 //	  System.out.print( "Tmeslot: "+ ts);
 //	  for(double dd : results) {
@@ -987,6 +995,16 @@ public void resetCapacityFees() {
 public void generateWeatherBootJSON() {
 	ObjectToJson.toJSONWeather(weatherDatas);
 }
+
+private double[] rndPredictor() {
+	double result[] = new double[24];
+	
+	for(int i = 0; i < 24 ; i++) {
+		result[i] = randomGen.nextDouble()*25000 + 30000;
+	}
+	return result;
+}
+
   
   
 }
