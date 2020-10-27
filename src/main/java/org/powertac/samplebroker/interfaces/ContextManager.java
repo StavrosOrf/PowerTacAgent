@@ -22,4 +22,6 @@ public interface ContextManager {
 	public double totalActualEnergy();
 	public DistributionReport getReport();
 	public double getLastActualEnergy();
+	
+	public double getUsage(int timeslot);
 }

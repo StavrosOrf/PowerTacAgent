@@ -120,7 +120,7 @@ public class EnergyPredictor {
         BufferedReader in;
         try {
             clientSocket = new Socket("localhost", Parameters.Predictor_Port);
-            clientSocket.setSoTimeout(1500);
+            clientSocket.setSoTimeout(500);
             out = new PrintWriter(clientSocket.getOutputStream(), true);
             in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
 //            System.out.println("sending");
@@ -158,7 +158,8 @@ public class EnergyPredictor {
             in.close();
  
         } catch (Exception e) {
-            e.printStackTrace();
+//            e.printStackTrace();
+        	System.out.println("Timeout in prediction!");
         }
         return results;
     }
@@ -169,7 +170,7 @@ public class EnergyPredictor {
         BufferedReader in;
         try {
             clientSocket = new Socket("localhost", Parameters.Predictor_Port);
-            clientSocket.setSoTimeout(1500);
+            clientSocket.setSoTimeout(500);
             out = new PrintWriter(clientSocket.getOutputStream(), true);
             in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
             System.out.println("sending");
@@ -190,6 +191,37 @@ public class EnergyPredictor {
  
         } catch (Exception e) {
             e.printStackTrace();
+        }
+    }
+    
+    public void fitData(){
+        Socket clientSocket;
+        PrintWriter out;
+        BufferedReader in;
+        try {
+            clientSocket = new Socket("localhost", Parameters.Predictor_Port);
+            clientSocket.setSoTimeout(1500);
+            out = new PrintWriter(clientSocket.getOutputStream(), true);
+            in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+//            System.out.println("sending");
+            out.println("fit");
+//            System.out.println("waiting..");
+            String resp;
+            while((resp = in.readLine()) != null) {
+//                System.out.println("Response: " + resp);
+                if(resp.equals("ok")) {
+//                    System.out.println("Succesfully fitted models.");
+                    clientSocket.close();
+                    break;
+                }
+            }
+ 
+            out.close();
+            in.close();
+ 
+        } catch (Exception e) {
+        	System.out.println("Timeout in fit!");
+//            e.printStackTrace();
         }
     }
  

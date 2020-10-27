@@ -50,6 +50,8 @@ implements Initializable,ContextManager
   private double totalActualEnergy = 0;
   private double lastActualEnergy = 0;
   private DistributionReport report = null;
+  
+  private double[] reportArray = new double[5000];
 
   // current cash balance
   private double cash = 0;
@@ -110,7 +112,7 @@ implements Initializable,ContextManager
 	  if(dr.getTimeslot()>361)
 		  totalActualEnergy += dr.getTotalConsumption();
 	  
-	  
+	  reportArray[dr.getTimeslot()] = dr.getTotalConsumption()-dr.getTotalProduction();
   }
   
 
@@ -148,6 +150,10 @@ public void setReport(DistributionReport report) {
 @Override
 public double totalActualEnergy() {
 	return totalActualEnergy;
+}
+
+public double getUsage(int timeslot) {
+	return reportArray[timeslot];
 }
   
   

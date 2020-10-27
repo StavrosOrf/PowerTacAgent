@@ -145,7 +145,7 @@ implements MarketManager, Initializable, Activatable
   private double totalWholesaleEnergy[] = new double[2];
   
 //  private double totalPredictedEnergyKWH = 0;
-//  private WeatherReport prevWeatherReport = null;
+  private WeatherReport prevWeatherReport = null;
   
 //  private ArrayList<>
   
@@ -480,11 +480,31 @@ implements MarketManager, Initializable, Activatable
 	  }	  
 	  
 	  if(report.getTimeslotIndex()< 360) {
-//		  prevWeatherReport = report;
+		  prevWeatherReport = report;
 		  return;
 	  }
+	  int temp = prevWeatherReport.getTimeslotIndex();
+//	  System.out.println("Weather| ts: " + temp +" " + prevWeatherReport.getCloudCover() );
+//	  DistributionReport d = contextManager.getReport();
+//	  System.out.println("Actual Demand Ts: " + temp + "\t" + contextManager.getUsage(temp) + " KWh");
+	  	  	  
+	  hour = getTimeSlotHour( prevWeatherReport.getTimeslotIndex());
+	  day = getTimeSlotDay( prevWeatherReport.getTimeslotIndex());	  
 	  
-	  portfolioManager.setBatchWeather(w);
+	  ww = new WeatherDataWithUsage(day, hour,prevWeatherReport.getTimeslotIndex(), prevWeatherReport.getTemperature(),
+			   prevWeatherReport.getWindSpeed(),prevWeatherReport.getWindDirection(), prevWeatherReport.getCloudCover(),
+			   contextManager.getUsage(temp)/1000);
+	  
+	  ObjectToJson.toJSONFitUsage(ww);
+	  //TODO call fit
+	  
+	  if(contextManager.getUsage(temp) == 0 && report.getTimeslotIndex() > 370 ) {
+		  System.out.println("Error in fitUsage creation");
+	  }else if(report.getTimeslotIndex() > 370){
+		  energyPredictor.fitData();
+	  }
+	  
+//	  portfolioManager.setBatchWeather(w);
 	  
 	  if((report.getTimeslotIndex() - 360) % 25 == 0 )
 		  excelWriter.writeCell(0,0,0,true);
@@ -502,8 +522,9 @@ implements MarketManager, Initializable, Activatable
 //	  }
 	  
 	  excelWriter.writeCell(dr.getTimeslot()-360,28,dr.getTotalConsumption(),false);
-//	  System.out.println("Weather| ts: " + report.getTimeslotIndex() +" " + report.getCloudCover() );
-//	  prevWeatherReport = report;
+	 
+	  
+	  prevWeatherReport = report;
   }
 
   /**
