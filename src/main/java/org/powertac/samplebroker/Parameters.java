@@ -72,6 +72,10 @@ public class Parameters {
 	  public double CONS_COUNT_EQUAL_BOUND = 55;
 	  @Value("${CONS_COUNT_LOWER_BOUND}")
 	  public double CONS_COUNT_LOWER_BOUND = 45;
+	  @Value("${CONS_COUNT_LOWEST_BOUND}")
+	  public double CONS_COUNT_LOWEST_BOUND = 45;
+	  @Value("${STATE_CHANGE_INTERVAL}")
+	  public double STATE_CHANGE_INTERVAL = 35;
 	 
 	  public static int Ecl = timeslotMS* (4* reevaluationCons/5)*10000;
 	  public static double Ereg = 0.05;

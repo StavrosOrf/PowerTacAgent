@@ -44,6 +44,7 @@ import org.powertac.common.msg.DistributionReport;
 import org.powertac.common.msg.MarketBootstrapData;
 import org.powertac.common.repo.TimeslotRepo;
 import org.powertac.samplebroker.assistingclasses.WeatherData;
+import org.powertac.samplebroker.assistingclasses.WeatherDataWithUsage;
 import org.powertac.samplebroker.core.BrokerPropertiesService;
 import org.powertac.samplebroker.interfaces.Activatable;
 import org.powertac.samplebroker.interfaces.BrokerContext;
@@ -53,7 +54,7 @@ import org.powertac.samplebroker.interfaces.MarketManager;
 import org.powertac.samplebroker.interfaces.PortfolioManager;
 import org.powertac.samplebroker.utility.Node;
 import org.powertac.samplebroker.utility.ObjectToJson;
-//import org.powertac.samplebroker.utility.EnergyPredictor;
+import org.powertac.samplebroker.utility.EnergyPredictor;
 import org.powertac.samplebroker.utility.ExcelWriter;
 import org.powertac.samplebroker.utility.TeePrintStream;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -84,7 +85,7 @@ implements MarketManager, Initializable, Activatable
   @Autowired
   private ContextManager contextManager;
   
-//  private EnergyPredictor energyPredictor;
+  private EnergyPredictor energyPredictor;
   private ExcelWriter excelWriter;
 
   // ------------ Configurable parameters --------------
@@ -154,7 +155,7 @@ implements MarketManager, Initializable, Activatable
   
   private Instant startTime = null;
   
-  private ArrayList<WeatherData> weatherDatas;
+  private ArrayList<WeatherDataWithUsage> weatherDatas;
 
   public MarketManagerService ()
   {
@@ -180,7 +181,7 @@ implements MarketManager, Initializable, Activatable
       randomGen = new Random();
     }
     
-    weatherDatas = new ArrayList<WeatherData>();
+    weatherDatas = new ArrayList<WeatherDataWithUsage>();
     
     for(int i = 0 ; i<24 ; i++) {
     	clearingPricesWe[i] = 30;
@@ -215,7 +216,8 @@ implements MarketManager, Initializable, Activatable
   public synchronized void handleMessage (Competition comp)
   {
     minMWh = Math.max(minMWh, comp.getMinimumOrderQuantity());
-//    energyPredictor = new EnergyPredictor();
+    energyPredictor = new EnergyPredictor();
+    energyPredictor.resetModels();
     
 	try {			   
     	String os = System.getProperty("os.name");
@@ -408,12 +410,17 @@ implements MarketManager, Initializable, Activatable
 	  
 	  hour = getTimeSlotHour(ts);
 	  day = getTimeSlotDay(ts);
-	  
-//	  results = energyPredictor.getKWhPredictionLSTMClient(hour,day);
 
+      if(ts > 370) {
+          results = energyPredictor.predict();
+          if(results[0] == 0) {
+                  System.out.println("FAIL in prediction");
+                  results = rndPredictor();
+          }
+  }
 	  
 //	  System.out.println("");
-	  results = rndPredictor();
+//	  results = rndPredictor();
 //	  System.out.print("Rnd predictor: ");
 //	  for(double d : results) {
 //		  System.out.printf(" % .2f",d );
@@ -464,8 +471,12 @@ implements MarketManager, Initializable, Activatable
 	  
 	  WeatherData w = new WeatherData(day, hour,report.getTimeslotIndex(), report.getTemperature(), report.getWindSpeed(),
 			  									report.getWindDirection(), report.getCloudCover());
+	  
+	  WeatherDataWithUsage ww = new WeatherDataWithUsage(day, hour,report.getTimeslotIndex(), report.getTemperature(), report.getWindSpeed(),
+														report.getWindDirection(), report.getCloudCover(),0);
+	  
 	  if(report.getTimeslotIndex() < 360) {
-		  weatherDatas.add(w);  
+		  weatherDatas.add(ww);  
 	  }	  
 	  
 	  if(report.getTimeslotIndex()< 360) {
@@ -473,7 +484,7 @@ implements MarketManager, Initializable, Activatable
 		  return;
 	  }
 	  
-//	  portfolioManager.setBatchWeather(w);
+	  portfolioManager.setBatchWeather(w);
 	  
 	  if((report.getTimeslotIndex() - 360) % 25 == 0 )
 		  excelWriter.writeCell(0,0,0,true);
@@ -684,7 +695,7 @@ implements MarketManager, Initializable, Activatable
 	    			//get a simulated clearing Price
 	    			double limitPriceMCTS = computeLimitPrice(timeslotBidding + curNode.hoursAhead,neededMWHTemp);
 	    			double clearingPrice = randomGen.nextGaussian()* OBSERVED_DEVIATION + limitPriceMCTS; 
-	    			// TODO swap compute limit price with price predictor value
+	    			// TODO swap compute limit price with price  value
 	    			if(limitPriceMCTS > clearingPrice) {
 	    				Csim += neededMWHTemp * clearingPrice;
 	    				neededMWHTemp = 0;
@@ -996,6 +1007,12 @@ public void generateWeatherBootJSON() {
 	ObjectToJson.toJSONWeather(weatherDatas);
 }
 
+public void setUsageInBoot(double[] usage) {
+	for(WeatherDataWithUsage w : weatherDatas) {
+		w.setNetUsageMWh(usage[w.getTimeslot()-24]/1000);
+	}
+}
+
 private double[] rndPredictor() {
 	double result[] = new double[24];
 	
@@ -1005,6 +1022,9 @@ private double[] rndPredictor() {
 	return result;
 }
 
+public void trainpredictor() {
+    energyPredictor.trainBootData();
+}
   
   
 }

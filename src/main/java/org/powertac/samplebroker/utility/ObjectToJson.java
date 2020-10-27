@@ -12,7 +12,8 @@ import org.powertac.common.WeatherForecast;
 import org.powertac.samplebroker.assistingclasses.Customer;
 import org.powertac.samplebroker.assistingclasses.CustomerUsage;
 import org.powertac.samplebroker.assistingclasses.TimeslotUsage;
-import org.powertac.samplebroker.assistingclasses.WeatherData; 
+import org.powertac.samplebroker.assistingclasses.WeatherData;
+import org.powertac.samplebroker.assistingclasses.WeatherDataWithUsage; 
 
 public class ObjectToJson { 
 	
@@ -126,7 +127,7 @@ public class ObjectToJson {
 		}
 	}
 	
-	public static void toJSONWeather(ArrayList<WeatherData> c) {
+	public static void toJSONWeather(ArrayList<WeatherDataWithUsage> c) {
 		org.codehaus.jackson.map.ObjectWriter ow = new ObjectMapper().writer().withDefaultPrettyPrinter();
 		String json;
 		try {

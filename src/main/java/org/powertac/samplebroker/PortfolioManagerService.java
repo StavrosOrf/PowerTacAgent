@@ -45,6 +45,10 @@ import org.powertac.common.msg.TariffStatus;
 import org.powertac.common.repo.CustomerRepo;
 import org.powertac.common.repo.TariffRepo;
 import org.powertac.common.repo.TimeslotRepo;
+import org.powertac.samplebroker.assistingclasses.Customer;
+import org.powertac.samplebroker.assistingclasses.CustomerUsage;
+import org.powertac.samplebroker.assistingclasses.TimeslotUsage;
+import org.powertac.samplebroker.assistingclasses.WeatherData;
 import org.powertac.samplebroker.core.BrokerPropertiesService;
 import org.powertac.samplebroker.interfaces.Activatable;
 import org.powertac.samplebroker.interfaces.BrokerContext;
@@ -53,6 +57,7 @@ import org.powertac.samplebroker.interfaces.Initializable;
 import org.powertac.samplebroker.interfaces.MarketManager;
 import org.powertac.samplebroker.interfaces.PortfolioManager;
 import org.powertac.samplebroker.utility.ExcelWriter;
+import org.powertac.samplebroker.utility.ObjectToJson;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
@@ -165,12 +170,20 @@ implements PortfolioManager, Initializable, Activatable
   
   private double totalEnergyused = 0;
   
-//  private ArrayList<CustomerUsage> subscriptionList ;
-//  private ArrayList<Customer> customerList ;
-//  private ArrayList<TimeslotUsage> trainingBatch;
-//  int trainingCounter = 0;
+  private ArrayList<CustomerUsage> subscriptionList ;
+  private ArrayList<Customer> customerList ;
+  private ArrayList<TimeslotUsage> trainingBatch;
+  int trainingCounter = 0;
   
   Parameters params;
+  
+  enum State {
+	  NORMAL,
+	  LOW_PERCENTAGE
+	}
+  
+  State state = State.NORMAL;
+  int state_duration = 0;
   
   private double LowerBoundABS ;
   private double LowerBound = Parameters.LowerBoundStatic;
@@ -224,12 +237,13 @@ private ApplicationContext ctx;
 	params = ctx.getBean(Parameters.class);
 	
 	LowerBoundABS= params.LowerBoundStaticAbsolute;
-//	customerList = new ArrayList<Customer>();
-//	trainingBatch = new ArrayList<TimeslotUsage>();
-//	subscriptionList = new ArrayList<CustomerUsage>();
+	customerList = new ArrayList<Customer>();
+	trainingBatch = new ArrayList<TimeslotUsage>();
+	subscriptionList = new ArrayList<CustomerUsage>();
 	
     Random ran = new Random();
     timer = -ran.nextInt(Parameters.reevaluationCons + 2) + 2;
+    state = State.NORMAL;
     
     for(int i=0;i<360;i++)
     	bootsrapUsage[i] = 0;
@@ -344,7 +358,7 @@ private ApplicationContext ctx;
 	  }
 	  record.subscribedPopulation = subs;
 	  
-//	  customerList.add(new Customer(cbd.getCustomerName(), cbd.getPowerType(), cbd.getNetUsage()));	  
+	  customerList.add(new Customer(cbd.getCustomerName(), cbd.getPowerType(), cbd.getNetUsage()));	  
 	  
 	  for(int i=0; i<360 && i<cbd.getNetUsage().length;i++) {
 		  bootsrapUsage[i] += cbd.getNetUsage()[i];
@@ -447,7 +461,7 @@ private ApplicationContext ctx;
     	totalEnergyUsed[ttx.getPostedTimeslotIndex()] += ttx.getKWh();
       // customers presumably found a better deal
       record.withdraw(ttx.getCustomerCount());
-//      removeCustomer(ttx);
+      removeCustomer(ttx);
     }
 //    else if (ttx.isRegulation()) {
 //      // Regulation transaction -- we record it as production/consumption
@@ -473,14 +487,14 @@ private ApplicationContext ctx;
       log.info("TTX Produce: " +ttx.getCharge() + " , " + ttx.getId() 
       	+ " , " + ttx.getBroker() + " , " + ttx.getTariffSpec().getPowerType().getGenericType());
       
-//      CustomerUsage c = new CustomerUsage(ttx.getCustomerInfo().getName(), ttx.getKWh()/1000, ttx.getCustomerCount(),
-//    		  							ttx.getCustomerInfo().getPopulation(), ttx.getCustomerInfo().isMultiContracting());
-//      for ( TimeslotUsage t : trainingBatch) {
-//    	  if(t.getTimeslot() == ttx.getPostedTimeslot().getSerialNumber()) {
-//    		  t.getC().add(c);
-//    		  break;
-//    	  }
-//      }
+      CustomerUsage c = new CustomerUsage(ttx.getCustomerInfo().getName(), ttx.getKWh()/1000, ttx.getCustomerCount(),
+    		  							ttx.getCustomerInfo().getPopulation(), ttx.getCustomerInfo().isMultiContracting());
+      for ( TimeslotUsage t : trainingBatch) {
+    	  if(t.getTimeslot() == ttx.getPostedTimeslot().getSerialNumber()) {
+    		  t.getC().add(c);
+    		  break;
+    	  }
+      }
 //      System.out.printf("Produce! Name: %35s , Count: %7d , Charge: %7.2f , Energy: % 10.2f Total: %7d\n",
 //	  			ttx.getCustomerInfo().getName(),ttx.getCustomerCount(),ttx.getCharge(),ttx.getKWh(),ttx.getCustomerInfo().getPopulation());
     }
@@ -496,15 +510,15 @@ private ApplicationContext ctx;
       double currentCharge = tariffCharges.get(ttx.getTariffSpec());
       tariffCharges.put(ttx.getTariffSpec(),currentCharge+ ttx.getCharge());
       
-//      CustomerUsage c = new CustomerUsage(ttx.getCustomerInfo().getName(), ttx.getKWh()/1000, ttx.getCustomerCount(),
-//				ttx.getCustomerInfo().getPopulation(), ttx.getCustomerInfo().isMultiContracting());
-//      
-//      for ( TimeslotUsage t : trainingBatch) {
-//    	  if(t.getTimeslot() == ttx.getPostedTimeslot().getSerialNumber()) {
-//    		  t.getC().add(c);
-//    	  		break;
-//    	  }
-//      }
+      CustomerUsage c = new CustomerUsage(ttx.getCustomerInfo().getName(), ttx.getKWh()/1000, ttx.getCustomerCount(),
+				ttx.getCustomerInfo().getPopulation(), ttx.getCustomerInfo().isMultiContracting());
+      
+      for ( TimeslotUsage t : trainingBatch) {
+    	  if(t.getTimeslot() == ttx.getPostedTimeslot().getSerialNumber()) {
+    		  t.getC().add(c);
+    	  		break;
+    	  }
+      }
       
 //      System.out.printf("Consume| Name: %35s , Count: %7d , Charge: %7.2f , Energy: % 10.2f Total: %7d\n",
 //	  			ttx.getCustomerInfo().getName(),ttx.getCustomerCount(),ttx.getCharge(),ttx.getKWh(),ttx.getCustomerInfo().getPopulation());
@@ -529,7 +543,7 @@ private ApplicationContext ctx;
         tariffCharges.put(ttx.getTariffSpec(),currentCharge+ ttx.getCharge());
     }
     else if (TariffTransaction.Type.SIGNUP == txType) {
-//    	addCustomer(ttx);
+    	addCustomer(ttx);
         record.signup(ttx.getCustomerCount());        
     	totalEnergyUsed[ttx.getPostedTimeslotIndex()] += ttx.getKWh();
     	log.info("TTX Signup: " +ttx.getCharge() + " , " + ttx.getId() 
@@ -619,17 +633,18 @@ private ApplicationContext ctx;
 			  triggerEvaluation = false;
 		  }
 		  
-//		  if(timeslotIndex == 360) {
-//			  ObjectToJson.toJSON(customerList);
-//			  marketManager.generateWeatherBootJSON();
-//			  // call the initial predictor trainer
-//		  }
+		  if(timeslotIndex == 360) {
+			  ObjectToJson.toJSON(customerList);
+			  marketManager.setUsageInBoot(bootsrapUsage);
+			  marketManager.generateWeatherBootJSON();
+			  marketManager.trainpredictor();
+			  // call the initial predictor trainer
+		  }
 		  
 		  //call total demand predictor 
 		  //call our subscription demand predictor
-//		  ObjectToJson.toJSONSubs(subscriptionList);
-		  
-		  
+		  ObjectToJson.toJSONSubs(subscriptionList);
+		  		  
 //		  System.out.printf("-->Energy Usage: %.2f KWh   ts %d \n",totalEnergyUsed[timeslotIndex-1],timeslotIndex-1);
 		  totalEnergyused += totalEnergyUsed[timeslotIndex-1];
 		  
@@ -645,17 +660,17 @@ private ApplicationContext ctx;
 	        		timer = 0;
 	    	  }
 	    	  
-//	    	  if (trainingCounter <= 0) {
-//	    		  ObjectToJson.toJSONBatch(trainingBatch);
-//	    		  setUpTrainingBatch(timeslotIndex);
-//	    		  trainingCounter = Parameters.batchSize;
-//	    		  if (timeslotIndex > 361) {
-//	    			  
-//	    			// call online trainer  
-//	    		  }
-//	    	  }
+	    	  if (trainingCounter <= 0) {
+	    		  ObjectToJson.toJSONBatch(trainingBatch);
+	    		  setUpTrainingBatch(timeslotIndex);
+	    		  trainingCounter = Parameters.batchSize;
+	    		  if (timeslotIndex > 361) {
+	    			  
+	    			// call online trainer  
+	    		  }
+	    	  }
 	    	  
-//	    	  trainingCounter --;
+	    	  trainingCounter --;
 	    	  timer ++;
 	    	  timer2 ++;
 	      }	
@@ -687,18 +702,16 @@ private ApplicationContext ctx;
 		}else {
 			enableStorage = false;
 		}
-
-		System.out.printf("Current Imbalance: % .2f \n",totalAssessmentBalancingCosts);
 		
-		printBalanceStats();        		
+		printBalanceStats();		
+		calculateCustomerCounts();
+		determineState();		
 		
 		for (TariffSpecification spec : customerSubscriptions.keySet()) {
 			
 			if(tariffCharges.get(spec) == null) {
 				continue;
 			}    				    			
-			
-			printCustomerInfo(spec);
 						
 			tempTariff = spec;
 			
@@ -713,17 +726,17 @@ private ApplicationContext ctx;
 			
 			if(spec.getPowerType().isStorage() && enableStorage && enableGStorage){  				
 				tempTariff = mutateStorageTariff(tempTariff);   				
-  			tariffCharges.remove(spec);
-  			
-  			tempTariff.addSupersedes(spec.getId());
-  	        tariffRepo.addSpecification(tempTariff);
-  	        tariffCharges.put(tempTariff,0d);
-  	        tariffCustomerCount.put(tempTariff,0);
-  	        brokerContext.sendMessage(tempTariff);
-  	        // revoke the old one
-  	        TariffRevoke revoke = new TariffRevoke(brokerContext.getBroker(), spec);
-  	        brokerContext.sendMessage(revoke);
-  	        
+	  			tariffCharges.remove(spec);
+	  			
+	  			tempTariff.addSupersedes(spec.getId());
+	  	        tariffRepo.addSpecification(tempTariff);
+	  	        tariffCharges.put(tempTariff,0d);
+	  	        tariffCustomerCount.put(tempTariff,0);
+	  	        brokerContext.sendMessage(tempTariff);
+	  	        
+	  	        TariffRevoke revoke = new TariffRevoke(brokerContext.getBroker(), spec);
+	  	        brokerContext.sendMessage(revoke);
+	  	        
 			} else if (spec.getPowerType() == PowerType.INTERRUPTIBLE_CONSUMPTION && enableInterruptible && enableGInterruptible) {
 				tempTariff = mutateInterruptibleConsTariff(tempTariff);
 				tariffCharges.remove(spec);
@@ -736,9 +749,9 @@ private ApplicationContext ctx;
 		        BalancingOrder order = new BalancingOrder(brokerContext.getBroker(),tempTariff, 0.3,calculateAvgRate(tempTariff,false) * 0.9);
 		        brokerContext.sendMessage(order);
 				
-  	        // revoke the old one
-  	        TariffRevoke revoke = new TariffRevoke(brokerContext.getBroker(), spec);
-  	        brokerContext.sendMessage(revoke);
+
+		        TariffRevoke revoke = new TariffRevoke(brokerContext.getBroker(), spec);
+		        brokerContext.sendMessage(revoke);
 			}
 		}
 		System.out.println("-- Total Solar Consumers: \t" + solarCustomersTotal + " / " + solarCustomers + " ");
@@ -778,57 +791,57 @@ private ApplicationContext ctx;
 		resetGlobalCounters();
   }
   
-//  private void removeCustomer(TariffTransaction ttx) {
-//	  CustomerUsage temp = null;
-//	  for(CustomerUsage c : subscriptionList) {
-//		  if(c.getCustomerName().equals(ttx.getCustomerInfo().getName())) {
-//			  c.setCount(c.getCount() - ttx.getCustomerCount());
-//			  
-//			  if(c.getCount() > 0) {
-//				  return;
-//			  }
-//			  temp = c;
-//		  }
-//	  }
-//	  
-//	  if (temp != null) {
-//		  subscriptionList.remove(temp);
-//		  return;
-//	  }
-//	  
-//	  System.out.println("Customer Not FOUND!!!!");
-//  }
-//  
-//  private void addCustomer(TariffTransaction ttx) {
-//	  for(CustomerUsage c : subscriptionList) {
-//		  if(c.getCustomerName().equals(ttx.getCustomerInfo().getName())) {
-//			  c.setCount(c.getCount() + ttx.getCustomerCount());
-//			  return;
-//		  }
-//	  }
-//	  subscriptionList.add(new CustomerUsage(ttx.getCustomerInfo().getName(), 0, ttx.getCustomerCount(),
-//			  				ttx.getCustomerInfo().getPopulation(), ttx.getCustomerInfo().isMultiContracting()));	    
-//  }
-//  
-//  private void setUpTrainingBatch(int timeslot) {
-//	  trainingBatch.clear();
-//	  int t = timeslot;
-//	  for(int i = 0 ; i < Parameters.batchSize ; i++) {
-//		  t++;
-//		  trainingBatch.add(new TimeslotUsage(t));
-//	  }
-//  }
+  private void removeCustomer(TariffTransaction ttx) {
+	  CustomerUsage temp = null;
+	  for(CustomerUsage c : subscriptionList) {
+		  if(c.getCustomerName().equals(ttx.getCustomerInfo().getName())) {
+			  c.setCount(c.getCount() - ttx.getCustomerCount());
+			  
+			  if(c.getCount() > 0) {
+				  return;
+			  }
+			  temp = c;
+		  }
+	  }
+	  
+	  if (temp != null) {
+		  subscriptionList.remove(temp);
+		  return;
+	  }
+	  
+	  System.out.println("Customer Not FOUND!!!!");
+  }
   
-//  public void setBatchWeather(WeatherData w) {
-//	  
-//      for ( TimeslotUsage t : trainingBatch) {
-//    	  if(t.getTimeslot() == w.getTimeslot()) {
-//    		  t.setWeather(w);    		  
-//    		  return;
-//    	  }
-//      }
-//      System.out.println("setbatch weather NOT FOUND!!!!!!!!!");
-//  }
+  private void addCustomer(TariffTransaction ttx) {
+	  for(CustomerUsage c : subscriptionList) {
+		  if(c.getCustomerName().equals(ttx.getCustomerInfo().getName())) {
+			  c.setCount(c.getCount() + ttx.getCustomerCount());
+			  return;
+		  }
+	  }
+	  subscriptionList.add(new CustomerUsage(ttx.getCustomerInfo().getName(), 0, ttx.getCustomerCount(),
+			  				ttx.getCustomerInfo().getPopulation(), ttx.getCustomerInfo().isMultiContracting()));	    
+  }
+  
+  private void setUpTrainingBatch(int timeslot) {
+	  trainingBatch.clear();
+	  int t = timeslot;
+	  for(int i = 0 ; i < Parameters.batchSize ; i++) {
+		  t++;
+		  trainingBatch.add(new TimeslotUsage(t));
+	  }
+  }
+  
+  public void setBatchWeather(WeatherData w) {
+	  
+      for ( TimeslotUsage t : trainingBatch) {
+    	  if(t.getTimeslot() == w.getTimeslot()) {
+    		  t.setWeather(w);    		  
+    		  return;
+    	  }
+      }
+      System.out.println("setbatch weather NOT FOUND!!!!!!!!!");
+  }
   
   private void resetGlobalCounters() {
 		totalEnergyused = 0;
@@ -895,7 +908,7 @@ private ApplicationContext ctx;
 		int activeTariffs = remainingActiveTariff(spec.getPowerType());
 		
 		if((myRate - enemyBestRate) > 0.025  && enemyBestRate != -1 && activeTariffs != 1) {
-			System.out.println("Revoked");
+			System.out.println("Revoked: " + spec.getId());
 	        // revoke the old one
 			tariffCharges.remove(spec);
 			tariffCustomerCount.remove(spec);
@@ -969,11 +982,12 @@ private ApplicationContext ctx;
    */
   private void consumptionTariffStrategy() {
 	  TariffSpecification tempTariff;
-		double eb = findBestCompetitiveTariff(PowerType.CONSUMPTION,false);    	
-		System.out.println("Best Enemy AVG Cons: " + eb);
+	  double customerPercentage = calculatePercentage(consumptionCustomers, consumptionCustomersTotal) ;
+	  double eb = findBestCompetitiveTariff(PowerType.CONSUMPTION,false);    	
+	  System.out.println("Best Enemy AVG Cons: " + eb);
 	  
       //when we have  the monopoly revoke all tariffs that are below LowerBound
-      if(calculatePercentage(consumptionCustomers, consumptionCustomersTotal) > params.CONS_COUNT_UPPER_BOUND  ) {
+      if(customerPercentage > params.CONS_COUNT_UPPER_BOUND  ) {
       	ArrayList<TariffSpecification> list = new ArrayList<TariffSpecification>();
       	double enemyBestRate = findBestCompetitiveTariff(PowerType.CONSUMPTION,false);
       	for (TariffSpecification t : tariffCharges.keySet()) {
@@ -984,8 +998,7 @@ private ApplicationContext ctx;
   				list.add(t);
   				tariffCustomerCount.remove(t);
   				TariffRevoke revoke = new TariffRevoke(brokerContext.getBroker(), t);
-      	        brokerContext.sendMessage(revoke);
-      	        
+      	        brokerContext.sendMessage(revoke);      	        
       		}
       	}
       	for(TariffSpecification t : list) {
@@ -996,7 +1009,7 @@ private ApplicationContext ctx;
       boolean publishTariff = true;
 		//when we have  the monopoly revoke the cheapest tariff
 
-      if (calculatePercentage(consumptionCustomers, consumptionCustomersTotal) > params.CONS_COUNT_MIDDLE_BOUND + middleBoundOffset  ) {
+      if ( customerPercentage > params.CONS_COUNT_MIDDLE_BOUND + middleBoundOffset  ) {
 			
 			TariffSpecification spec = findMyBestTariff(PowerType.CONSUMPTION);
 			if (spec != null ) {
@@ -1029,38 +1042,69 @@ private ApplicationContext ctx;
 					}					
 				}
 			}
-		}
+      }
+      
 		
-		if(calculatePercentage(consumptionCustomers, consumptionCustomersTotal) < params.CONS_COUNT_LOWER_BOUND + lowerBoundOffset  ) {
-//			System.out.println("Under 45% Bound:");
-			double enemyBestRate = findBestCompetitiveTariff(PowerType.CONSUMPTION,false);    	
-//			System.out.println("Best Enemy AVG: " + enemyBestRate);
+      if( customerPercentage < params.CONS_COUNT_LOWER_BOUND + lowerBoundOffset  ) {
+//		  System.out.println("Under 45% Bound:");
+    	  double enemyBestRate = findBestCompetitiveTariff(PowerType.CONSUMPTION,false);    	
+//		  System.out.println("Best Enemy AVG: " + enemyBestRate);
 			
-			TariffSpecification spec = findMyBestTariff(PowerType.CONSUMPTION);
-			if(calculateAvgRate(spec, false) > enemyBestRate) {
-				tempTariff = mutateConsumptionTariff(spec,false,calculateAvgRate(spec, false),true);
-			}else {
-				tempTariff = mutateConsumptionTariff(spec,false,enemyBestRate,true);    				
-			}
-	           								
-			
-			if(!checkIfAlreadyExists(tempTariff) && ((-enemyBestRate + calculateAvgRate(tempTariff, false )) < 0.01)) {		
-				publishTariff = false;        			
-				tariffRepo.addSpecification(tempTariff);
-				tariffCharges.put(tempTariff,0d);
-				tariffCustomerCount.put(tempTariff,0);
-				brokerContext.sendMessage(tempTariff);
-			}else {
-				System.out.println("Not publishing");
-			}
-		}
+    	  TariffSpecification spec = findMyBestTariff(PowerType.CONSUMPTION);
+    	  if(calculateAvgRate(spec, false) > enemyBestRate) {
+    		  tempTariff = mutateConsumptionTariff(spec,false,calculateAvgRate(spec, false),true);
+    	  }else {
+    		  tempTariff = mutateConsumptionTariff(spec,false,enemyBestRate,true);    				
+    	  }
+    	  
+    	  if(!checkIfAlreadyExists(tempTariff) && ((-enemyBestRate + calculateAvgRate(tempTariff, false )) < 0.01)) {		
+    		  publishTariff = false;        			
+    		  tariffRepo.addSpecification(tempTariff);
+    		  tariffCharges.put(tempTariff,0d);
+    		  tariffCustomerCount.put(tempTariff,0);
+    		  brokerContext.sendMessage(tempTariff);
+    	  }else {
+    		  System.out.println("Not publishing");
+    	  }	           											
+      }
 		
+      if(publishTariff) {
+    	  publishNewConsumptionTariff();
+      } 		
 		
-		
-		if(publishTariff) {
-			publishNewConsumptionTariff();
-		} 
+
   	}
+
+  private void determineState() {
+	  double customerPercentage = calculatePercentage(consumptionCustomers, consumptionCustomersTotal) ;
+      if (customerPercentage > params.CONS_COUNT_EQUAL_BOUND) {
+    	  state = State.NORMAL;
+    	  state_duration = 0;
+      }
+      
+      if( customerPercentage < params.CONS_COUNT_LOWEST_BOUND   ) {
+    	  if(state == State.NORMAL) {
+    		  state_duration += Parameters.reevaluationCons;  
+    		  System.out.println("UNDER 30%: " + state_duration + " timeslots");
+    		  if(state_duration > params.STATE_CHANGE_INTERVAL) {
+    			  state = State.LOW_PERCENTAGE;
+    		  }
+    	  }    	  
+      }
+      if(state != State.NORMAL) {
+			System.out.println("-State : \t" + state.toString());	
+		}
+  }
+  
+  private void calculateCustomerCounts() {
+	  for (TariffSpecification spec : customerSubscriptions.keySet()) {
+			if(tariffCharges.get(spec) == null) {
+				continue;
+			}    				    			
+			
+			printCustomerInfo(spec);
+	  }
+  }
 
 private int remainingActiveTariff(PowerType pt) {
 	  int counter = 0;
@@ -2144,15 +2188,15 @@ private TariffSpecification findBestCompProductionTariff(PowerType pt) {
   private void printCompTariffs(int timeslotIndex) {
 		System.out.println("\nOther Tariffs-----------");
 //		if(timeslotIndex < 1500) {
-	  		int cc = 0;
+//	  		int cc = 0;
 	  		for (PowerType pt : competingTariffs.keySet()) {
 	  			for (TariffSpecification spec : competingTariffs.get(pt)) {
-	      			if(pt == PowerType.CONSUMPTION && spec.getBroker().getUsername().equals("a")) {
-	      				cc ++;
-	      				if(cc > 2) {
-	      					continue;
-	      				}
-	      			}
+//	      			if(pt == PowerType.CONSUMPTION && spec.getBroker().getUsername().equals("a")) {
+//	      				cc ++;
+//	      				if(cc > 2) {
+//	      					continue;
+//	      				}
+//	      			}
 	  				printTariff(spec);      			
 	      		}
 	  		}	
@@ -2172,7 +2216,7 @@ private TariffSpecification findBestCompProductionTariff(PowerType pt) {
 				continue;    
 			totalProfits += tariffCharges.get(spec);
 		}
-		
+		System.out.printf("Current Imbalance: % .2f \n",totalAssessmentBalancingCosts);
 		double tariffprofits = totalProfits;
 		totalProfits = 0;
 		t1 = balancingCosts;
