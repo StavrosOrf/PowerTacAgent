@@ -505,17 +505,25 @@ implements MarketManager, Initializable, Activatable
 	  
 	  ObjectToJson.toJSONFitUsage(ww);
 	  
+	  boolean t = false;
+//	  System.out.println("Temp: " + contextManager.getUsage(temp) + " Threshold: " + portfolioManager.getCurrentThreshold() + 5000);
+	  if(portfolioManager.getCurrentThreshold() + 2500 < contextManager.getUsage(temp)) {		  
+		  t = true;
+	  }
+	  
 	  WeatherDataWithPeaks www = new WeatherDataWithPeaks(day, hour,prevWeatherReport.getTimeslotIndex(), prevWeatherReport.getTemperature(),
 			   prevWeatherReport.getWindSpeed(),prevWeatherReport.getWindDirection(), prevWeatherReport.getCloudCover(),
-			   contextManager.getUsage(temp)/1000,true);
+			   contextManager.getUsage(temp)/1000,t);	  
 	  
+	  if(report.getTimeslotIndex() > 371) {
+		  ObjectToJson.toJSONPeaks(www);
+		  //TODO call PEAKS from predictor
+	  }
+
 	  
-	  ObjectToJson.toJSONFitUsage(www);
-	  //TODO call fit
-	  
-	  if(contextManager.getUsage(temp) == 0 && report.getTimeslotIndex() > 370 ) {
+	  if(contextManager.getUsage(temp) == 0 && report.getTimeslotIndex() > 371 ) {
 		  System.out.println("Error in fitUsage creation");
-	  }else if(report.getTimeslotIndex() > 370){
+	  }else if(report.getTimeslotIndex() > 371){
 		  energyPredictor.fitData();
 	  }
 	  

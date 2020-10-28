@@ -167,6 +167,7 @@ implements PortfolioManager, Initializable, Activatable
   private double gamaParameter = 1.25;
   
   private double bestEWP = 0;
+  private double currentThreshold = 0;
   
   private double totalEnergyused = 0;
   
@@ -2241,14 +2242,20 @@ private TariffSpecification findBestCompProductionTariff(PowerType pt) {
   private void printDemandPeaks() {
   	System.out.println("Date: " + timeslotRepo.currentTimeslot().getStartInstant().toString());
 		double[] d = new double[2];
-		  	d = calcDemandMeanDeviation();
+		d = calcDemandMeanDeviation();
+	
 		System.out.printf("Current| Threshold: %.2f \t Peaks| ",  (d[0] + gamaParameter*d[1]) );
+		currentThreshold = (d[0] + gamaParameter*d[1]);
 		for(int p = 0; p < 3 ; p++) { 
 			if(peakDemand[p] != 0) {
 				System.out.printf("\t Ts: %d  %.2f KWh",peakDemandTS[p],peakDemand[p]); 
 			}    			
 		}
 		System.out.println("");
+  }
+  
+  public double getCurrentThreshold() {
+	  return currentThreshold;
   }
   
   private void createInitialTariffs() {	  

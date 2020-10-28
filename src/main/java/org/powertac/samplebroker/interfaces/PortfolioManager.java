@@ -32,4 +32,6 @@ public interface PortfolioManager
   public void setBatchWeather(WeatherData w);
   public void setBalancingCosts(double imbalance);
   public Parameters getParams();
+  public double getCurrentThreshold();
+  
 }

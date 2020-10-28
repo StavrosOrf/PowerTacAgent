@@ -99,7 +99,7 @@ public class ObjectToJson {
 		}
 	}
 	
-	public static void toJSONFitUsage(WeatherDataWithPeaks f) {
+	public static void toJSONPeaks(WeatherDataWithPeaks f) {
 		org.codehaus.jackson.map.ObjectWriter ow = new ObjectMapper().writer().withDefaultPrettyPrinter();
 		String json;
 		try {
