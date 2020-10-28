@@ -16,29 +16,20 @@
 package org.powertac.samplebroker.utility;
  
 import java.net.*;
-import java.util.Random;
  
 import org.powertac.samplebroker.Parameters;
  
 import java.io.*;
  
 public class EnergyPredictor {
+	private int failure_counter = 0;
+	private static int ALLOWED_TIMEOUTS = 15;
        
     public EnergyPredictor() {
-        String simpleMlp;
-                try {
-//                      simpleMlp = new ClassPathResource("LSTM_EP500_BS16.h5").getFile().getPath();
-//              model = KerasModelImport.importKerasSequentialModelAndWeights(simpleMlp);      
-//             
-                } catch (Exception e) {
-                        // TODO Auto-generated catch block
-                        e.printStackTrace();
-                }
+
         }
  
         public static void main(String args[]) {
-               
-                EnergyPredictor en = new EnergyPredictor();
                
                  Socket clientSocket;
                     PrintWriter out;
@@ -118,6 +109,11 @@ public class EnergyPredictor {
         Socket clientSocket;
         PrintWriter out;
         BufferedReader in;
+        
+        if(failure_counter > ALLOWED_TIMEOUTS) {
+        	return results;
+        }
+        
         try {
             clientSocket = new Socket("localhost", Parameters.Predictor_Port);
             clientSocket.setSoTimeout(500);
@@ -159,6 +155,7 @@ public class EnergyPredictor {
  
         } catch (Exception e) {
 //            e.printStackTrace();
+        	failure_counter ++;
         	System.out.println("Timeout in prediction!");
         }
         return results;
@@ -168,6 +165,11 @@ public class EnergyPredictor {
         Socket clientSocket;
         PrintWriter out;
         BufferedReader in;
+        
+        if(failure_counter > ALLOWED_TIMEOUTS) {
+        	return ;
+        }
+        
         try {
             clientSocket = new Socket("localhost", Parameters.Predictor_Port);
             clientSocket.setSoTimeout(500);
@@ -190,7 +192,9 @@ public class EnergyPredictor {
             in.close();
  
         } catch (Exception e) {
-            e.printStackTrace();
+        	failure_counter ++;
+        	System.out.println("Timeout in train!");
+//            e.printStackTrace();
         }
     }
     
@@ -198,6 +202,11 @@ public class EnergyPredictor {
         Socket clientSocket;
         PrintWriter out;
         BufferedReader in;
+        
+        if(failure_counter > ALLOWED_TIMEOUTS) {
+        	return ;
+        }
+        
         try {
             clientSocket = new Socket("localhost", Parameters.Predictor_Port);
             clientSocket.setSoTimeout(1500);
@@ -220,6 +229,7 @@ public class EnergyPredictor {
             in.close();
  
         } catch (Exception e) {
+        	failure_counter ++;
         	System.out.println("Timeout in fit!");
 //            e.printStackTrace();
         }
@@ -250,7 +260,8 @@ public class EnergyPredictor {
             in.close();
  
         } catch (Exception e) {
-            e.printStackTrace();
+//            e.printStackTrace();
+        	System.out.println("Timeout in reset models!");
         }
     }
        
@@ -393,4 +404,22 @@ public class EnergyPredictor {
                 }
                 System.out.println();
     }
+
+	public int getFailure_counter() {
+		return failure_counter;
+	}
+
+	public void setFailure_counter(int failure_counter) {
+		this.failure_counter = failure_counter;
+	}
+
+	public static int getALLOWED_TIMEOUTS() {
+		return ALLOWED_TIMEOUTS;
+	}
+
+	public static void setALLOWED_TIMEOUTS(int aLLOWED_TIMEOUTS) {
+		ALLOWED_TIMEOUTS = aLLOWED_TIMEOUTS;
+	}
+    
+    
 }

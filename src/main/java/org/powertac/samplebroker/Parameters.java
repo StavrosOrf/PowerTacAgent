@@ -73,7 +73,7 @@ public class Parameters {
 	  @Value("${CONS_COUNT_LOWER_BOUND}")
 	  public double CONS_COUNT_LOWER_BOUND = 45;
 	  @Value("${CONS_COUNT_LOWEST_BOUND}")
-	  public double CONS_COUNT_LOWEST_BOUND = 45;
+	  public double CONS_COUNT_LOWEST_BOUND = 35;
 	  @Value("${STATE_CHANGE_INTERVAL}")
 	  public double STATE_CHANGE_INTERVAL = 35;
 	 

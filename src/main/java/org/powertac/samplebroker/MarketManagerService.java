@@ -44,6 +44,7 @@ import org.powertac.common.msg.DistributionReport;
 import org.powertac.common.msg.MarketBootstrapData;
 import org.powertac.common.repo.TimeslotRepo;
 import org.powertac.samplebroker.assistingclasses.WeatherData;
+import org.powertac.samplebroker.assistingclasses.WeatherDataWithPeaks;
 import org.powertac.samplebroker.assistingclasses.WeatherDataWithUsage;
 import org.powertac.samplebroker.core.BrokerPropertiesService;
 import org.powertac.samplebroker.interfaces.Activatable;
@@ -194,6 +195,12 @@ implements MarketManager, Initializable, Activatable
     	netUsageCounterWe[i] = 1;
     	netUsageCounterWd[i] = 1;
     }
+    
+    
+    energyPredictor = new EnergyPredictor();
+    energyPredictor.resetModels();
+    
+
 
   }
 
@@ -215,9 +222,17 @@ implements MarketManager, Initializable, Activatable
    */
   public synchronized void handleMessage (Competition comp)
   {
-    minMWh = Math.max(minMWh, comp.getMinimumOrderQuantity());
-    energyPredictor = new EnergyPredictor();
-    energyPredictor.resetModels();
+	minMWh = Math.max(minMWh, comp.getMinimumOrderQuantity());
+    System.out.println("Competition name: "+ comp.getName());
+    System.out.print("Competitors: ");
+    for (String s : comp.getBrokers()) {
+		System.out.print(s+ " ");
+	}
+    System.out.println("");
+    this.comp = comp;
+    startTime = comp.getSimulationBaseTime();
+    
+    numberOfBrokers = comp.getBrokers().size() -1;
     
 	try {			   
     	String os = System.getProperty("os.name");
@@ -237,17 +252,7 @@ implements MarketManager, Initializable, Activatable
 		System.out.println("error writing to file");
 		e.printStackTrace();
 	}
-
-    System.out.println("Competition name: "+ comp.getName());
-    System.out.print("Competitors: ");
-    for (String s : comp.getBrokers()) {
-		System.out.print(s+ " ");
-	}
-    System.out.println("");
-    this.comp = comp;
-    startTime = comp.getSimulationBaseTime();
-    
-    numberOfBrokers = comp.getBrokers().size() -1;
+	
   }
 
   /**
@@ -414,7 +419,9 @@ implements MarketManager, Initializable, Activatable
       if(ts > 370) {
           results = energyPredictor.predict();
           if(results[0] == 0) {
-                  System.out.println("FAIL in prediction");
+        	  if(energyPredictor.getFailure_counter() < EnergyPredictor.getALLOWED_TIMEOUTS()) {
+        		  System.out.println("FAIL in prediction");
+        	  }                  
                   results = rndPredictor();
           }
   }
@@ -469,9 +476,9 @@ implements MarketManager, Initializable, Activatable
 	  int hour = getTimeSlotHour( report.getTimeslotIndex());
 	  int day = getTimeSlotDay( report.getTimeslotIndex());	  
 	  
-	  WeatherData w = new WeatherData(day, hour,report.getTimeslotIndex(), report.getTemperature(), report.getWindSpeed(),
-			  									report.getWindDirection(), report.getCloudCover());
-	  
+//	  WeatherData w = new WeatherData(day, hour,report.getTimeslotIndex(), report.getTemperature(), report.getWindSpeed(),
+//			  									report.getWindDirection(), report.getCloudCover());
+//	  
 	  WeatherDataWithUsage ww = new WeatherDataWithUsage(day, hour,report.getTimeslotIndex(), report.getTemperature(), report.getWindSpeed(),
 														report.getWindDirection(), report.getCloudCover(),0);
 	  
@@ -495,7 +502,15 @@ implements MarketManager, Initializable, Activatable
 			   prevWeatherReport.getWindSpeed(),prevWeatherReport.getWindDirection(), prevWeatherReport.getCloudCover(),
 			   contextManager.getUsage(temp)/1000);
 	  
+	  
 	  ObjectToJson.toJSONFitUsage(ww);
+	  
+	  WeatherDataWithPeaks www = new WeatherDataWithPeaks(day, hour,prevWeatherReport.getTimeslotIndex(), prevWeatherReport.getTemperature(),
+			   prevWeatherReport.getWindSpeed(),prevWeatherReport.getWindDirection(), prevWeatherReport.getCloudCover(),
+			   contextManager.getUsage(temp)/1000,true);
+	  
+	  
+	  ObjectToJson.toJSONFitUsage(www);
 	  //TODO call fit
 	  
 	  if(contextManager.getUsage(temp) == 0 && report.getTimeslotIndex() > 370 ) {

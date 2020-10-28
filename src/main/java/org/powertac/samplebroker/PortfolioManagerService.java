@@ -930,36 +930,19 @@ private ApplicationContext ctx;
   }
   
   private int publishNewConsumptionTariff() {
-		// find my tariff with the lower avg rate
+
 		double myBestRate = calculateAvgRate(findMyBestTariff(PowerType.CONSUMPTION),false);
 		double enemyBestRate = findBestCompetitiveTariff(PowerType.CONSUMPTION,false);
-//		System.out.println("Best Enemy AVG: " + enemyBestRate);
 		TariffSpecification tempTariff = new TariffSpecification(brokerContext.getBroker(), PowerType.CONSUMPTION);
-//		if(enemyBestRate == -1)
-//			enemyBestRate = 1.2*LowerBound; 
-		
+
 		if(calculatePercentage(consumptionCustomers,consumptionCustomersTotal) > params.CONS_COUNT_EQUAL_BOUND 
 				&& (Math.abs(enemyBestRate - myBestRate) <0.01 || enemyBestRate == -1) 
 				&& remainingActiveTariff(PowerType.CONSUMPTION ) !=  0){
-//				&& LowerBound  > myBestRate) {
+
 			return -1;
 		}
 		
-//		if(calculatePercentage(consumptionCustomers,consumptionCustomersTotal) < 75 
-//				&& enemyBestRate < UpperBound ) {
-//			UpperBound += 0.015;
-//			
-//			if(UpperBound > LowerBound)
-//				UpperBound = LowerBound - 0.05; 
-//			System.out.println("UpperBound: " + UpperBound);
-//			
-//		//skip
-//		}else if (calculatePercentage(consumptionCustomers,consumptionCustomersTotal) >= 75 
-//				&&  enemyBestRate < UpperBound
-//				&& LowerBound  > myBestRate ) {
-//			return -1;
-//		}   				
-		
+
 		tempTariff = mutateConsumptionTariff(tempTariff,false,0,false);   				
 		
 		if(checkIfAlreadyExists(tempTariff)){
@@ -1047,7 +1030,11 @@ private ApplicationContext ctx;
 		
       if( customerPercentage < params.CONS_COUNT_LOWER_BOUND + lowerBoundOffset  ) {
 //		  System.out.println("Under 45% Bound:");
-    	  double enemyBestRate = findBestCompetitiveTariff(PowerType.CONSUMPTION,false);    	
+    	  double enemyBestRate = findBestCompetitiveTariff(PowerType.CONSUMPTION,false);    
+    	  double multiplier = 1;
+    	  if(state == State.LOW_PERCENTAGE) {
+    		  multiplier = 2;
+    	  }
 //		  System.out.println("Best Enemy AVG: " + enemyBestRate);
 			
     	  TariffSpecification spec = findMyBestTariff(PowerType.CONSUMPTION);
@@ -1057,7 +1044,7 @@ private ApplicationContext ctx;
     		  tempTariff = mutateConsumptionTariff(spec,false,enemyBestRate,true);    				
     	  }
     	  
-    	  if(!checkIfAlreadyExists(tempTariff) && ((-enemyBestRate + calculateAvgRate(tempTariff, false )) < 0.01)) {		
+    	  if(!checkIfAlreadyExists(tempTariff) && ((-enemyBestRate + calculateAvgRate(tempTariff, false )) < 0.01 * multiplier)) {		
     		  publishTariff = false;        			
     		  tariffRepo.addSpecification(tempTariff);
     		  tariffCharges.put(tempTariff,0d);
@@ -1080,6 +1067,7 @@ private ApplicationContext ctx;
       if (customerPercentage > params.CONS_COUNT_EQUAL_BOUND) {
     	  state = State.NORMAL;
     	  state_duration = 0;
+    	  return;
       }
       
       if( customerPercentage < params.CONS_COUNT_LOWEST_BOUND   ) {
@@ -1087,7 +1075,7 @@ private ApplicationContext ctx;
     		  state_duration += Parameters.reevaluationCons;  
     		  System.out.println("UNDER 30%: " + state_duration + " timeslots");
     		  if(state_duration > params.STATE_CHANGE_INTERVAL) {
-    			  state = State.LOW_PERCENTAGE;
+    			  state = State.LOW_PERCENTAGE;    			  
     		  }
     	  }    	  
       }
@@ -1118,6 +1106,10 @@ private int remainingActiveTariff(PowerType pt) {
   
   private boolean checkIfAlreadyExists(TariffSpecification spec) {
 	  double avgrate = calculateAvgRate(spec, false);
+	  double multiplier = 1;
+	  if(state == State.LOW_PERCENTAGE) {
+		  multiplier = 0.5;
+	  }
 	  
 	  for (TariffSpecification t : tariffCharges.keySet())
 	  {
@@ -1125,7 +1117,7 @@ private int remainingActiveTariff(PowerType pt) {
 		  if ( t.getPowerType() != spec.getPowerType())
 			  continue;
 		  
-		  if (Math.abs(avgrate - calculateAvgRate(t, false)) < 0.005 && spec.getPowerType() == PowerType.CONSUMPTION)
+		  if (Math.abs(avgrate - calculateAvgRate(t, false)) < 0.005*multiplier && spec.getPowerType() == PowerType.CONSUMPTION)
 			  return true;
 		  
 		  if (Math.abs(avgrate - calculateAvgRate(t, false)) < 0.004 && spec.getPowerType().isProduction())
