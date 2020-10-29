@@ -8,12 +8,11 @@ public class WeatherDataWithPeaks {
 	  private double temperature;
 	  private double windSpeed;
 	  private double windDirection;
-	  private double cloudCover;
-	  private double netUsageMWh;
+	  private double cloudCover;	  
 	  private boolean isPeak;
 
 	public WeatherDataWithPeaks(int day, int hour, int timeslot, double temperature, double windSpeed,
-								double windDirection, double cloudCover, double netUsageMWh, boolean isPeak) {
+								double windDirection, double cloudCover, boolean isPeak) {
 		super();
 		this.day = day;
 		this.hour = hour;
@@ -21,8 +20,7 @@ public class WeatherDataWithPeaks {
 		this.temperature = temperature;
 		this.windSpeed = windSpeed;
 		this.windDirection = windDirection;
-		this.cloudCover = cloudCover;
-		this.netUsageMWh = netUsageMWh;
+		this.cloudCover = cloudCover;		
 		this.isPeak = isPeak;
 	}
 
@@ -32,14 +30,6 @@ public class WeatherDataWithPeaks {
 
 	public void setPeak(boolean isPeak) {
 		this.isPeak = isPeak;
-	}
-
-	public double getNetUsageMWh() {
-		return netUsageMWh;
-	}
-
-	public void setNetUsageMWh(double netUsageMWh) {
-		this.netUsageMWh = netUsageMWh;
 	}
 
 	public int getDay() {

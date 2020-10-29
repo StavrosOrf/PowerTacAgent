@@ -199,7 +199,7 @@ implements MarketManager, Initializable, Activatable
     
     energyPredictor = new EnergyPredictor();
     energyPredictor.resetModels();
-    
+    System.out.println("t");
 
 
   }
@@ -507,13 +507,12 @@ implements MarketManager, Initializable, Activatable
 	  
 	  boolean t = false;
 //	  System.out.println("Temp: " + contextManager.getUsage(temp) + " Threshold: " + portfolioManager.getCurrentThreshold() + 5000);
-	  if(portfolioManager.getCurrentThreshold() + 2500 < contextManager.getUsage(temp)) {		  
+	  if(portfolioManager.getCurrentThreshold() + 1500 < contextManager.getUsage(temp)) {		  
 		  t = true;
 	  }
 	  
 	  WeatherDataWithPeaks www = new WeatherDataWithPeaks(day, hour,prevWeatherReport.getTimeslotIndex(), prevWeatherReport.getTemperature(),
-			   prevWeatherReport.getWindSpeed(),prevWeatherReport.getWindDirection(), prevWeatherReport.getCloudCover(),
-			   contextManager.getUsage(temp)/1000,t);	  
+			   prevWeatherReport.getWindSpeed(),prevWeatherReport.getWindDirection(), prevWeatherReport.getCloudCover(),t);	  
 	  
 	  if(report.getTimeslotIndex() > 371) {
 		  ObjectToJson.toJSONPeaks(www);

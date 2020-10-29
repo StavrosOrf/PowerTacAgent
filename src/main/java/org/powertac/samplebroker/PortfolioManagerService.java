@@ -1071,7 +1071,7 @@ private ApplicationContext ctx;
     	  return;
       }
       
-      if( customerPercentage < params.CONS_COUNT_LOWEST_BOUND   ) {
+      if( customerPercentage < params.CONS_COUNT_LOWEST_BOUND + lowerBoundOffset  ) {
     	  if(state == State.NORMAL) {
     		  state_duration += Parameters.reevaluationCons;  
     		  System.out.println("UNDER 30%: " + state_duration + " timeslots");
@@ -2262,7 +2262,7 @@ private TariffSpecification findBestCompProductionTariff(PowerType pt) {
 	  TariffSpecification tempTariff;
 	  System.out.println("Creating Initial Tariffs....");
 	  for (PowerType pt : customerProfiles.keySet()) {
-		   			
+		  
 			if( pt == PowerType.CONSUMPTION && enableGConsumption) {
 				tempTariff = null;
 				tempTariff = mutateConsumptionTariff(tempTariff,true,0,false);   			    			
