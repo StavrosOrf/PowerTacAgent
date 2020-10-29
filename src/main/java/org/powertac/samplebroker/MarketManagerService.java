@@ -486,7 +486,7 @@ implements MarketManager, Initializable, Activatable
 	  
 	  boolean t = false;
 	  WeatherDataWithPeaks www = new WeatherDataWithPeaks(day, hour,report.getTimeslotIndex(), report.getTemperature(),
-			  report.getWindSpeed(),report.getWindDirection(), report.getCloudCover(),t);	  
+			  						report.getWindSpeed(),report.getWindDirection(), report.getCloudCover(),0,t);	  
 	  
 	  if(report.getTimeslotIndex() < 360) {
 		  weatherDatas.add(ww);
@@ -514,12 +514,13 @@ implements MarketManager, Initializable, Activatable
 	  
 	  
 //	  System.out.println("Temp: " + contextManager.getUsage(temp) + " Threshold: " + portfolioManager.getCurrentThreshold() + 5000);
-	  if(portfolioManager.getCurrentThreshold() + 1500 < contextManager.getUsage(temp)) {		  
+	  if(portfolioManager.getCurrentThreshold() + Parameters.THRESHOLD_OFFSET < contextManager.getUsage(temp)) {		  
 		  t = true;
 	  }
 	  
 	  www = new WeatherDataWithPeaks(day, hour,prevWeatherReport.getTimeslotIndex(), prevWeatherReport.getTemperature(),
-			   prevWeatherReport.getWindSpeed(),prevWeatherReport.getWindDirection(), prevWeatherReport.getCloudCover(),t);	  
+			   prevWeatherReport.getWindSpeed(),prevWeatherReport.getWindDirection(), prevWeatherReport.getCloudCover()
+			   ,contextManager.getUsage(temp),t);	  
 	  
 	  if(report.getTimeslotIndex() > 371) {
 		  ObjectToJson.toJSONPeaks(www);
@@ -1067,10 +1068,11 @@ public void setUsageInBoot(double[] usage,double threshold) {
 	for(WeatherDataWithPeaks w : weatherDatasPeaks) {		
 //		System.out.println("Timeslot: " +w.getTimeslot() + "  Threshold:" + threshold + "  Demand: " + Math.abs(usage[w.getTimeslot()-24]));
 		t = false;
-		if(Math.abs(usage[w.getTimeslot()-24]) > (threshold + 1500)) {
+		if(Math.abs(usage[w.getTimeslot()-24]) > (threshold + Parameters.THRESHOLD_OFFSET)) {
 			t = true;
 		}
 		w.setPeak(t);
+		w.setNetUsageMWh(usage[w.getTimeslot()-24]/1000);
 	}
 }
 

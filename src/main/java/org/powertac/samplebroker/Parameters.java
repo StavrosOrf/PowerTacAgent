@@ -42,6 +42,9 @@ public class Parameters {
 	  public static int reevaluationStorage = 250*reevaluationCons;
 	  public static int reevaluationProduction = 4*reevaluationCons;
 	  public static int reevaluationInterruptible = 200 *reevaluationCons;
+	  
+	  //ThresholdOffset
+	  public static double THRESHOLD_OFFSET = 1000;
 	  	    
 	  //Mutation Constants
 	  public static double Ebp = 4;
