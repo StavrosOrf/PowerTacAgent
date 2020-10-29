@@ -210,6 +210,34 @@ public class ObjectToJson {
 		}
 	}
 	
+	public static void toJSONPeak(ArrayList<WeatherDataWithPeaks> c) {
+		org.codehaus.jackson.map.ObjectWriter ow = new ObjectMapper().writer().withDefaultPrettyPrinter();
+		String json;
+		try {
+			json = ow.writeValueAsString(c);			
+	    	String os = System.getProperty("os.name");
+	    	if(os.equals("Windows 10")) {
+	    		BufferedWriter writer = new BufferedWriter(new FileWriter("tempFiles\\peaks.boot.json"));
+	    		writer.write(json);		    
+			    writer.close();
+	    	}else {
+	    		BufferedWriter writer = new BufferedWriter(new FileWriter("tempFiles/peaks.boot.json"));
+	    		writer.write(json);		    
+			    writer.close();
+	    	}			
+		    
+		} catch (JsonGenerationException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (JsonMappingException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
+	
 	public static void toJSONBatch(ArrayList<TimeslotUsage> c) {
 		org.codehaus.jackson.map.ObjectWriter ow = new ObjectMapper().writer().withDefaultPrettyPrinter();
 		String json;

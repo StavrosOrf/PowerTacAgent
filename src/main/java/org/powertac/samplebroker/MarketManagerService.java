@@ -157,6 +157,7 @@ implements MarketManager, Initializable, Activatable
   private Instant startTime = null;
   
   private ArrayList<WeatherDataWithUsage> weatherDatas;
+  private ArrayList<WeatherDataWithPeaks> weatherDatasPeaks;
 
   public MarketManagerService ()
   {
@@ -183,6 +184,7 @@ implements MarketManager, Initializable, Activatable
     }
     
     weatherDatas = new ArrayList<WeatherDataWithUsage>();
+    weatherDatasPeaks = new ArrayList<WeatherDataWithPeaks>();
     
     for(int i = 0 ; i<24 ; i++) {
     	clearingPricesWe[i] = 30;
@@ -482,8 +484,13 @@ implements MarketManager, Initializable, Activatable
 	  WeatherDataWithUsage ww = new WeatherDataWithUsage(day, hour,report.getTimeslotIndex(), report.getTemperature(), report.getWindSpeed(),
 														report.getWindDirection(), report.getCloudCover(),0);
 	  
+	  boolean t = false;
+	  WeatherDataWithPeaks www = new WeatherDataWithPeaks(day, hour,report.getTimeslotIndex(), report.getTemperature(),
+			  report.getWindSpeed(),report.getWindDirection(), report.getCloudCover(),t);	  
+	  
 	  if(report.getTimeslotIndex() < 360) {
-		  weatherDatas.add(ww);  
+		  weatherDatas.add(ww);
+		  weatherDatasPeaks.add(www);
 	  }	  
 	  
 	  if(report.getTimeslotIndex()< 360) {
@@ -494,7 +501,7 @@ implements MarketManager, Initializable, Activatable
 //	  System.out.println("Weather| ts: " + temp +" " + prevWeatherReport.getCloudCover() );
 //	  DistributionReport d = contextManager.getReport();
 //	  System.out.println("Actual Demand Ts: " + temp + "\t" + contextManager.getUsage(temp) + " KWh");
-	  	  	  
+	  
 	  hour = getTimeSlotHour( prevWeatherReport.getTimeslotIndex());
 	  day = getTimeSlotDay( prevWeatherReport.getTimeslotIndex());	  
 	  
@@ -505,20 +512,19 @@ implements MarketManager, Initializable, Activatable
 	  
 	  ObjectToJson.toJSONFitUsage(ww);
 	  
-	  boolean t = false;
+	  
 //	  System.out.println("Temp: " + contextManager.getUsage(temp) + " Threshold: " + portfolioManager.getCurrentThreshold() + 5000);
 	  if(portfolioManager.getCurrentThreshold() + 1500 < contextManager.getUsage(temp)) {		  
 		  t = true;
 	  }
 	  
-	  WeatherDataWithPeaks www = new WeatherDataWithPeaks(day, hour,prevWeatherReport.getTimeslotIndex(), prevWeatherReport.getTemperature(),
+	  www = new WeatherDataWithPeaks(day, hour,prevWeatherReport.getTimeslotIndex(), prevWeatherReport.getTemperature(),
 			   prevWeatherReport.getWindSpeed(),prevWeatherReport.getWindDirection(), prevWeatherReport.getCloudCover(),t);	  
 	  
 	  if(report.getTimeslotIndex() > 371) {
 		  ObjectToJson.toJSONPeaks(www);
 		  //TODO call PEAKS from predictor
 	  }
-
 	  
 	  if(contextManager.getUsage(temp) == 0 && report.getTimeslotIndex() > 371 ) {
 		  System.out.println("Error in fitUsage creation");
@@ -1048,11 +1054,23 @@ public void resetCapacityFees() {
 
 public void generateWeatherBootJSON() {
 	ObjectToJson.toJSONWeather(weatherDatas);
+	ObjectToJson.toJSONPeak(weatherDatasPeaks);
+	System.out.println("--");
 }
 
-public void setUsageInBoot(double[] usage) {
+public void setUsageInBoot(double[] usage,double threshold) {
 	for(WeatherDataWithUsage w : weatherDatas) {
 		w.setNetUsageMWh(usage[w.getTimeslot()-24]/1000);
+	}
+	System.out.println("Threshold from Boot: " + threshold);
+	boolean t = false;
+	for(WeatherDataWithPeaks w : weatherDatasPeaks) {		
+//		System.out.println("Timeslot: " +w.getTimeslot() + "  Threshold:" + threshold + "  Demand: " + Math.abs(usage[w.getTimeslot()-24]));
+		t = false;
+		if(Math.abs(usage[w.getTimeslot()-24]) > (threshold + 1500)) {
+			t = true;
+		}
+		w.setPeak(t);
 	}
 }
 

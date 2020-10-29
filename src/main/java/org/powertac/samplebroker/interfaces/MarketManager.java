@@ -49,7 +49,7 @@ public interface MarketManager
   public void setTotalBalancingEnergy(double totalBalancingEnergy); 
   public Competition getComp();
   
-  public void setUsageInBoot(double d[]);
+  public void setUsageInBoot(double d[],double threshold);
   public void generateWeatherBootJSON();
   public double[] getNetUsagePredictorWe();
   public double[] getNetUsagePredictorWd();

@@ -634,10 +634,15 @@ private ApplicationContext ctx;
 			  triggerEvaluation = false;
 		  }
 		  
-		  if(timeslotIndex == 360) {
+		  if(timeslotIndex == 361) {
+			  double[] d = new double[2];
+			  d = calcDemandMeanDeviation();			
+			  currentThreshold = (d[0] + gamaParameter*d[1]);
+			  
 			  ObjectToJson.toJSON(customerList);
-			  marketManager.setUsageInBoot(bootsrapUsage);
+			  marketManager.setUsageInBoot(bootsrapUsage,currentThreshold);
 			  marketManager.generateWeatherBootJSON();
+			  
 			  marketManager.trainpredictor();
 			  // call the initial predictor trainer
 		  }
