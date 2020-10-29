@@ -38,6 +38,14 @@ public class ExcelWriter {
 		
 		cellC = rowC.createCell(28);
 		cellC.setCellValue("Actual Consumption KWh");
+		cellC = rowC.createCell(30);
+		cellC.setCellValue("Actual Peak");
+		
+		
+		for(int i = 0; i< 23; i++) {
+			cellC = rowC.createCell(i+4 + 28);
+			cellC.setCellValue((i+2)+" hours before prediction");
+		}
 		
 		
         try{

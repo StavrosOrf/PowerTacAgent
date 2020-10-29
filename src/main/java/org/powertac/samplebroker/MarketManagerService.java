@@ -426,35 +426,21 @@ implements MarketManager, Initializable, Activatable
         	  }                  
                   results = rndPredictor();
           }
-  }
+      }
 	  
-//	  System.out.println("");
-//	  results = rndPredictor();
-//	  System.out.print("Rnd predictor: ");
-//	  for(double d : results) {
-//		  System.out.printf(" % .2f",d );
-//	  }
-//	  System.out.println("");
-//	  results = energyPredictor.getKWhPredictorLSTM(hour ,day,forecast);
-//	  System.out.print( "Tmeslot: "+ ts);
-//	  for(double dd : results) {
-//		  System.out.print(dd + "| ");
-//	  }
-//	  System.out.println(" ");
 	  for(WeatherForecastPrediction f : forecast.getPredictions()) {
 		  
 		  hour = getTimeSlotHour(ts + f.getForecastTime());
 		  day = getTimeSlotDay(ts + f.getForecastTime());
 		  
-//		  pr = energyPredictor.getKWhPredictor(day, hour,
-//				new WeatherReport(ts + f.getForecastTime(), f.getTemperature(), f.getWindSpeed(), f.getWindDirection(), f.getCloudCover()));
-//		
-//		  if(f.getForecastTime() == 1 ) {
-//			  excelWriter.writeCell(forecast.getTimeslotIndex() + 1 - 360, 1, pr);
+//		  int tempValue = 0;
+//		  if( results[counter] > portfolioManager.getCurrentThreshold() + Parameters.THRESHOLD_OFFSET) {
+//			  tempValue = 1;
 //		  }
+//		  excelWriter.writeCell(forecast.getTimeslotIndex() + f.getForecastTime() - 360 , f.getForecastTime() + 2 + 28, results[counter],false);
+//		  
 		  excelWriter.writeCell(forecast.getTimeslotIndex() + f.getForecastTime() - 360 , f.getForecastTime() + 2, results[counter],false);
-		  
-		  
+		  		  
 		  if(day < 6) {
 			  netUsagePredictorWd[hour] = results[counter]*1000;
 			  
@@ -462,12 +448,7 @@ implements MarketManager, Initializable, Activatable
 			  netUsagePredictorWe[hour] = results[counter]*1000;
 		  }
 		  counter++;
-//		  if( (timeslotRepo.currentSerialNumber()-4-360) % Parameters.reevaluationCons == 0) {
-//			  System.out.printf("Prediction| TS: %4d Energy: %.2f KWh ",ts + f.getForecastTime(),pr);
-//		  }
-		  
 	  }
-//	  System.out.println("+");
   }
 
   /**
@@ -542,15 +523,14 @@ implements MarketManager, Initializable, Activatable
 
 	  excelWriter.writeCell(dr.getTimeslot()-360,0,dr.getTimeslot(),false);
 	  excelWriter.writeCell(dr.getTimeslot()-360,1,dr.getTotalConsumption()-dr.getTotalProduction(),false);
-//	  if(dr != null) {
-//		  System.out.printf("Energy Prediction: Timeslot %d Energy( %.2f ) |Actual Energy Consumption timeslot %d "
-//		  		+ "( %.2f ) Actual Demand %.2f | diff: %.2f %% \n",
-//				  prevWeatherReport.getTimeslotIndex(),pr,
-//		  			dr.getTimeslot(),dr.getTotalConsumption(),dr.getTotalConsumption()-dr.getTotalProduction()
-//		  			,(dr.getTotalConsumption()-pr)*100/dr.getTotalConsumption());  
-//	  }
-	  
+
 	  excelWriter.writeCell(dr.getTimeslot()-360,28,dr.getTotalConsumption(),false);
+	  
+	  int tempValue = 0;
+	  if(dr.getTotalConsumption()-dr.getTotalProduction() > portfolioManager.getCurrentThreshold() + Parameters.THRESHOLD_OFFSET) {
+		  tempValue = 1;
+	  }
+	  excelWriter.writeCell(dr.getTimeslot()-360,30,tempValue,false);
 	 
 	  
 	  prevWeatherReport = report;
