@@ -105,6 +105,9 @@ public class EnergyPredictor {
  
     public double[] predict(){
         double[] results = new double[24];
+        for(int i = 0; i < 24; i++) {
+        	results[i] = -1;
+        }
         int counter = 0;
         Socket clientSocket;
         PrintWriter out;

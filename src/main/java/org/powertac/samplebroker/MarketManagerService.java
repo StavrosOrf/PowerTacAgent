@@ -402,6 +402,9 @@ implements MarketManager, Initializable, Activatable
 	  int hour,day,counter = 0;	  
 	  int ts = forecast.getTimeslotIndex();
 	  double results[] = new double[24];
+	  for(int i = 0; i < 24; i++) {
+      	results[i] = -1;
+      }
 	  
 	  ArrayList<WeatherData> weatherlist = new ArrayList<WeatherData>();
 	  
@@ -420,12 +423,12 @@ implements MarketManager, Initializable, Activatable
 
       if(ts > 370 && trainingTimer == 0) {
           results = energyPredictor.predict();
-          if(results[0] == 0) {
-        	  if(energyPredictor.getFailure_counter() < EnergyPredictor.getALLOWED_TIMEOUTS()) {
-        		  System.out.println("FAIL in prediction");
-        	  }                  
-                  results = rndPredictor();
-          }
+//          if(results[0] == 0) {
+//        	  if(energyPredictor.getFailure_counter() < EnergyPredictor.getALLOWED_TIMEOUTS()) {
+//        		  System.out.println("FAIL in prediction");
+//        	  }                  
+//                  results = rndPredictor();
+//          }
       }
 	  
 	  for(WeatherForecastPrediction f : forecast.getPredictions()) {
@@ -501,7 +504,7 @@ implements MarketManager, Initializable, Activatable
 	  
 	  www = new WeatherDataWithPeaks(day, hour,prevWeatherReport.getTimeslotIndex(), prevWeatherReport.getTemperature(),
 			   prevWeatherReport.getWindSpeed(),prevWeatherReport.getWindDirection(), prevWeatherReport.getCloudCover()
-			   ,contextManager.getUsage(temp),t);	  
+			   ,contextManager.getUsage(temp)/1000,t);	  
 	  
 	  if(report.getTimeslotIndex() > 371) {
 		  ObjectToJson.toJSONPeaks(www);
@@ -1050,7 +1053,7 @@ public void generateWeatherBootJSON() {
 
 public void setUsageInBoot(double[] usage,double threshold) {
 	for(WeatherDataWithUsage w : weatherDatas) {
-		w.setNetUsageMWh(usage[w.getTimeslot()-24]/1000);
+		w.setNetUsageMWh(-usage[w.getTimeslot()-24]/1000);
 	}
 	System.out.println("Threshold from Boot: " + threshold);
 	boolean t = false;
@@ -1061,7 +1064,7 @@ public void setUsageInBoot(double[] usage,double threshold) {
 			t = true;
 		}
 		w.setPeak(t);
-		w.setNetUsageMWh(usage[w.getTimeslot()-24]/1000);
+		w.setNetUsageMWh(-usage[w.getTimeslot()-24]/1000);
 	}
 }
 
