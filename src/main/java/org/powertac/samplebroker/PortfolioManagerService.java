@@ -147,6 +147,7 @@ implements PortfolioManager, Initializable, Activatable
   
   private int timer = 0 ;
   private int timer2 = 0;
+  
   private boolean triggerEvaluation = false;
   private int triggerEvaluationTS = 0;
   private boolean enableStorage = true;
@@ -646,6 +647,8 @@ private ApplicationContext ctx;
 			  marketManager.trainpredictor();
 			  // call the initial predictor trainer
 		  }
+		  
+
 		  
 		  //call total demand predictor 
 		  //call our subscription demand predictor

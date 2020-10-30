@@ -129,7 +129,7 @@ implements MarketManager, Initializable, Activatable
   private double clearingPricesWd[] = new double[24];
   private int tradesPassedWe[] = new int[24];
   private int tradesPassedWd[] = new int[24];
-  
+  private int trainingTimer = 0;
   private CapacityTransaction[] capacityFees = new CapacityTransaction[3];
   
   private double netUsagePredictorWe[] = new double[24];
@@ -418,7 +418,7 @@ implements MarketManager, Initializable, Activatable
 	  hour = getTimeSlotHour(ts);
 	  day = getTimeSlotDay(ts);
 
-      if(ts > 370) {
+      if(ts > 370 && trainingTimer == 0) {
           results = energyPredictor.predict();
           if(results[0] == 0) {
         	  if(energyPredictor.getFailure_counter() < EnergyPredictor.getALLOWED_TIMEOUTS()) {
@@ -442,10 +442,10 @@ implements MarketManager, Initializable, Activatable
 		  excelWriter.writeCell(forecast.getTimeslotIndex() + f.getForecastTime() - 360 , f.getForecastTime() + 2, results[counter],false);
 		  		  
 		  if(day < 6) {
-			  netUsagePredictorWd[hour] = results[counter]*1000;
+			  netUsagePredictorWd[hour] = (1 + results[counter]) * 1000;
 			  
 		  }else {
-			  netUsagePredictorWe[hour] = results[counter]*1000;
+			  netUsagePredictorWe[hour] = (1 + results[counter]) * 1000;
 		  }
 		  counter++;
 	  }
@@ -510,7 +510,7 @@ implements MarketManager, Initializable, Activatable
 	  
 	  if(contextManager.getUsage(temp) == 0 && report.getTimeslotIndex() > 371 ) {
 		  System.out.println("Error in fitUsage creation");
-	  }else if(report.getTimeslotIndex() > 371){
+	  }else if(report.getTimeslotIndex() > 371 && trainingTimer == 0){
 		  energyPredictor.fitData();
 	  }
 	  
@@ -562,10 +562,13 @@ implements MarketManager, Initializable, Activatable
 	updateUsage(portfolioManager.collectUsage(timeslotIndex), timeslotIndex); 
 	double neededKWh = 0.0;
 	
-//	if(timeslotIndex % Parameters.reevaluationCons == 0) {
-//		System.out.printf("Current total deviation:%.2f %% \n",
-//				(contextManager.totalActualEnergy()-totalPredictedEnergyKWH)*100/contextManager.totalActualEnergy());
-//	}
+	  if((timeslotIndex-360) % 168 == 0 && timeslotIndex != 360) {
+		  //TODO call retrain
+		  System.out.println("Re-train!!!!!");
+		  energyPredictor.retraintData((int) Math.round(portfolioManager.getCurrentThreshold()));
+		  trainingTimer = 10;
+		  
+	  }
 	
     log.debug(" Current timeslot is " + timeslotIndex);
     System.out.println("\n|------------------------------------|  Current timeslot is " + timeslotIndex 
@@ -580,6 +583,12 @@ implements MarketManager, Initializable, Activatable
       submitBidMCTS(neededKWh,timeslotIndex, timeslot.getSerialNumber());
  
     }
+    
+	  trainingTimer --;
+	  if(trainingTimer < 0) {
+		  trainingTimer = 0;
+	  }
+    
   }
   void printAboutTimeslot(Timeslot t) {
 	  if(WH_PRINT_ON)

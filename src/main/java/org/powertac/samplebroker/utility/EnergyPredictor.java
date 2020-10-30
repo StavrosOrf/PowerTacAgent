@@ -116,7 +116,7 @@ public class EnergyPredictor {
         
         try {
             clientSocket = new Socket("localhost", Parameters.Predictor_Port);
-            clientSocket.setSoTimeout(500);
+            clientSocket.setSoTimeout(1000);
             out = new PrintWriter(clientSocket.getOutputStream(), true);
             in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
 //            System.out.println("sending");
@@ -161,6 +161,43 @@ public class EnergyPredictor {
         return results;
     }
  
+    public void retraintData(int threshold){
+        Socket clientSocket;
+        PrintWriter out;
+        BufferedReader in;
+        
+        if(failure_counter > ALLOWED_TIMEOUTS) {
+        	return ;
+        }
+        
+        try {
+            clientSocket = new Socket("localhost", Parameters.Predictor_Port);
+            clientSocket.setSoTimeout(1000);
+            out = new PrintWriter(clientSocket.getOutputStream(), true);
+            in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+//            System.out.println("sending");
+            out.println("retrain " + threshold);
+//            System.out.println("waiting..");
+            String resp;
+            while((resp = in.readLine()) != null) {
+                System.out.println("Response: " + resp);
+                if(resp.equals("ok")) {
+                    System.out.println("Succesfully Re-Trained models.");
+                    clientSocket.close();
+                    break;
+                }
+            }
+ 
+            out.close();
+            in.close();
+ 
+        } catch (Exception e) {
+        	failure_counter ++;
+        	System.out.println("Timeout in re-train!");
+//            e.printStackTrace();
+        }
+    }
+    
     public void trainBootData(){
         Socket clientSocket;
         PrintWriter out;
