@@ -573,7 +573,7 @@ private ApplicationContext ctx;
    */
   public synchronized void handleMessage (BalancingControlEvent bce)
   {
-//	  System.out.printf("={ Balancing: %14s , Energy: %7.2f KWh , Cost: %4.2f € \n", bce.getTariffId(),bce.getKwh(), bce.getPayment());
+//	  System.out.printf("={ Balancing: %14s , Energy: %7.2f KWh , Cost: %4.2f E \n", bce.getTariffId(),bce.getKwh(), bce.getPayment());
 	  balancingCosts += bce.getPayment();
 	  balancingEnergy += bce.getKwh();
 	  log.info("BalancingControlEvent " + bce.getKwh());
@@ -1113,11 +1113,11 @@ private int remainingActiveTariff(PowerType pt) {
 				  }  
 				  //total energy of all brokers at that timeslot
 				  total =  (totalEnergyUsed[peakDemandTS[i]]*(peakDemand[i]-realThreshold))/mineEnergy;
-				  System.out.printf("\tFees: % 10.2f € \t Total Energy of all brokers: % .2f \n" , 18*(peakDemand[i]-realThreshold),total);
+				  System.out.printf("\tFees: % 10.2f E \t Total Energy of all brokers: % .2f \n" , 18*(peakDemand[i]-realThreshold),total);
 				  fees += 18*(peakDemand[i]-realThreshold);
 			  }			  
 		  }
-		  System.out.printf("Total capacity fees: %.2f € \t Total Mine: %.2f €\t Threshold: %.2f\n",fees,totalFeesMine,realThreshold);
+		  System.out.printf("Total capacity fees: %.2f E \t Total Mine: %.2f E\t Threshold: %.2f\n",fees,totalFeesMine,realThreshold);
 		  
 		  if(Math.abs(totalFeesMine) < Parameters.LowerBoundChangerFees) {
 			  LowerBound += 0.005; 			  
@@ -1963,28 +1963,28 @@ private int remainingActiveTariff(PowerType pt) {
 		t1 = balancingCosts;
 		t2 = balancingEnergy;
 		totalProfits += t1;
-		System.out.printf("Balancing costs Interruptible \t: % 9.2f € \t Energy: % .2f KWh     \t Avg: % .2f €/MWh\n", t1,t2,1000*t1/t2);
+		System.out.printf("Balancing costs Interruptible \t: % 9.2f E \t Energy: % .2f KWh     \t Avg: % .2f E/MWh\n", t1,t2,1000*t1/t2);
 		t1 = marketManager.getBalancingCosts();
 		t2 = marketManager.getTotalBalancingEnergy();
 		totalProfits += t1;
-		System.out.printf("Balancing costs MM	\t: % 9.2f € \t Energy: % .2f KWh        \t Avg: % .2f €/MWh\n", t1,t2,t1/(t2/1000));
+		System.out.printf("Balancing costs MM	\t: % 9.2f E \t Energy: % .2f KWh        \t Avg: % .2f E/MWh\n", t1,t2,t1/(t2/1000));
 		t1 = marketManager.getDistributionCosts();
 		t2 = marketManager.getTotalDistributionEnergy();
 		totalProfits += t1;
-//		System.out.printf("Distribution costs	\t: % .2f € \t Energy: % .2f KWh\t\t Avg: % .2f €/KWh\n",t1,t2,t2/t1);
-		System.out.printf("Distribution costs	\t: % 9.2f € \n",t1);
+//		System.out.printf("Distribution costs	\t: % .2f E \t Energy: % .2f KWh\t\t Avg: % .2f E/KWh\n",t1,t2,t2/t1);
+		System.out.printf("Distribution costs	\t: % 9.2f E \n",t1);
 		t1 = marketManager.getWholesaleCosts()[0];
 		t2 = marketManager.getWholesaleEnergy()[0];
 		totalProfits += t1;
-		System.out.printf("Wholesale market buying \t: % 9.2f € \t Energy: % .2f KWh     \t Avg: % .2f €/MWh \t Energy Used: % .2f MWh\n",
+		System.out.printf("Wholesale market buying \t: % 9.2f E \t Energy: % .2f KWh     \t Avg: % .2f E/MWh \t Energy Used: % .2f MWh\n",
 							t1,t2,1000*t1/t2,totalEnergyused/1000 );
 		t1 = marketManager.getWholesaleCosts()[1];
 		t2 = marketManager.getWholesaleEnergy()[1];
 		totalProfits += t1;
-		System.out.printf("Wholesale market selling\t: % 9.2f € \t Energy: % .2f KWh     \t Avg: % .2f €/MWh\n",t1,t2,-1000*t1/t2);
-//		System.out.printf("Market based profits total\t: % .2f € \t Tariff based profits total\t: % .2f €  \t",totalProfits,tariffprofits);
+		System.out.printf("Wholesale market selling\t: % 9.2f E \t Energy: % .2f KWh     \t Avg: % .2f E/MWh\n",t1,t2,-1000*t1/t2);
+//		System.out.printf("Market based profits total\t: % .2f E \t Tariff based profits total\t: % .2f E  \t",totalProfits,tariffprofits);
 		totalProfits += tariffprofits;
-		System.out.printf("Total profit from this period\t: % 9.2f € \n\n",totalProfits);
+		System.out.printf("Total profit from this period\t: % 9.2f E \n\n",totalProfits);
   }
   
   private void printDemandPeaks() {
