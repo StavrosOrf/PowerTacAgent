@@ -139,6 +139,7 @@ implements PortfolioManager, Initializable, Activatable
   
   private double middleBoundOffset = 0;
   private double lowerBoundOffset = 0;
+  private double weatherBoundOffset = 0;
   
   private int timer = 0 ;
   
@@ -168,7 +169,9 @@ implements PortfolioManager, Initializable, Activatable
   
   private boolean secondaryTariffEn = false;
   
-  int trainingCounter = 0;
+  private int currentMonth = 1;
+  private int currentDay = 1;
+  
   
   Parameters params;
   
@@ -728,10 +731,10 @@ private ApplicationContext ctx;
   
   private void setSecondaryTariffsEnablers() {
 	  
-	  if(calculatePercentage(solarCustomers, solarCustomersTotal) > 35) {
+	  if(calculatePercentage(solarCustomers, solarCustomersTotal) > 35 + weatherBoundOffset + middleBoundOffset) {
 		  solar_Passed = true;
 	  }
-	  if(calculatePercentage(windCustomers, windCustomersTotal) > 20) {
+	  if(calculatePercentage(windCustomers, windCustomersTotal) > 20 + weatherBoundOffset + middleBoundOffset) {
 		  wind_Passed = true;
 	  }
 	  if(calculatePercentage(tHCCustomers, thermalCustomersTotal) >= 50) {
@@ -739,7 +742,6 @@ private ApplicationContext ctx;
 	  }
   }
     
-
   private void resetGlobalCounters() {
 		totalEnergyused = 0;
 		marketManager.setTotalBalancingEnergy(0);
@@ -761,44 +763,6 @@ private ApplicationContext ctx;
 			tariffCharges.put(spec, 0d);
 		}
   }
-  
-//  private void revokeProductionTariff(TariffSpecification spec) {	
-//  		TariffSpecification m = findBestCompProductionTariff(spec.getPowerType()); 
-//		double enemyBestRate = calculateAvgProdRate(m,calculateAvgRate(m, false));  
-//		double myRate = calculateAvgProdRate(spec,calculateAvgRate(spec, false));     				
-//		int activeTariffs = remainingActiveTariff(spec.getPowerType());
-//		
-//		if ( params.productionTariffsEnabled == 0) {
-//			System.out.println("Revoked");
-//	        
-//			tariffCharges.remove(spec);
-//			tariffCustomerCount.remove(spec);
-//	        TariffRevoke revoke = new TariffRevoke(brokerContext.getBroker(), spec);
-//	        brokerContext.sendMessage(revoke);
-//	        return;
-//		}
-//		
-//		if((myRate - enemyBestRate) > 0.02  && activeTariffs != 1) {
-//			System.out.println("Revoked");
-//	        
-//			tariffCharges.remove(spec);
-//			tariffCustomerCount.remove(spec);
-//	        TariffRevoke revoke = new TariffRevoke(brokerContext.getBroker(), spec);
-//	        brokerContext.sendMessage(revoke);
-//	        
-//	        //check that there is always a better tariff available
-//			TariffSpecification tempTariff = mutateProductionTariff(spec,false,0,false);  				
-//			        				
-//			if(!checkIfAlreadyExists(tempTariff)) {        					                			                	
-//				tariffRepo.addSpecification(tempTariff);
-//				tariffCharges.put(tempTariff,0d);
-//				tariffCustomerCount.put(tempTariff,0);
-//				brokerContext.sendMessage(tempTariff);
-//			}else {
-//				System.out.println("Not publishing");
-//			}            	        
-//		}
-//  }
   
   private void revokeConsumptionTariff(TariffSpecification spec) {
 		double enemyBestRate = findBestCompetitiveTariff(spec.getPowerType(),false);
@@ -827,13 +791,12 @@ private ApplicationContext ctx;
 		double enemyBestRate = findBestCompetitiveTariff(PowerType.CONSUMPTION,false);
 		TariffSpecification tempTariff = new TariffSpecification(brokerContext.getBroker(), PowerType.CONSUMPTION);
 
-		if(calculatePercentage(consumptionCustomers,consumptionCustomersTotal) > params.CONS_COUNT_EQUAL_BOUND 
+		if(calculatePercentage(consumptionCustomers,consumptionCustomersTotal) > (params.CONS_COUNT_EQUAL_BOUND + weatherBoundOffset)
 				&& (Math.abs(enemyBestRate - myBestRate) <0.01 || enemyBestRate == -1) 
 				&& remainingActiveTariff(PowerType.CONSUMPTION ) !=  0){
 
 			return -1;
 		}
-		
 
 		tempTariff = mutateConsumptionTariff(tempTariff,false,0,false);   				
 		
@@ -856,9 +819,10 @@ private ApplicationContext ctx;
 	  double customerPercentage = calculatePercentage(consumptionCustomers, consumptionCustomersTotal) ;
 	  double eb = findBestCompetitiveTariff(PowerType.CONSUMPTION,false);    	
 	  System.out.println("Best Enemy AVG Cons: " + eb);
+	  setMonthBoundedVariables();
 	  
       //when we have  the monopoly revoke all tariffs that are below LowerBound
-      if(customerPercentage > params.CONS_COUNT_UPPER_BOUND  ) {
+      if(customerPercentage > params.CONS_COUNT_UPPER_BOUND + weatherBoundOffset ) {
       	ArrayList<TariffSpecification> list = new ArrayList<TariffSpecification>();
       	double enemyBestRate = findBestCompetitiveTariff(PowerType.CONSUMPTION,false);
       	for (TariffSpecification t : tariffCharges.keySet()) {
@@ -880,7 +844,7 @@ private ApplicationContext ctx;
       boolean publishTariff = true;
 		//when we have  the monopoly revoke the cheapest tariff
 
-      if ( customerPercentage > params.CONS_COUNT_MIDDLE_BOUND + middleBoundOffset  ) {
+      if ( customerPercentage > params.CONS_COUNT_MIDDLE_BOUND + middleBoundOffset + weatherBoundOffset ) {
 			
 			TariffSpecification spec = findMyBestTariff(PowerType.CONSUMPTION);
 			if (spec != null ) {
@@ -910,7 +874,7 @@ private ApplicationContext ctx;
       }
       
 		
-      if( customerPercentage < params.CONS_COUNT_LOWER_BOUND + lowerBoundOffset  ) {
+      if( customerPercentage < params.CONS_COUNT_LOWER_BOUND + lowerBoundOffset + weatherBoundOffset ) {
 //		  System.out.println("Under 45% Bound:");
     	  double enemyBestRate = findBestCompetitiveTariff(PowerType.CONSUMPTION,false);    
     	  double multiplier = 1;
@@ -958,13 +922,13 @@ private ApplicationContext ctx;
 
   private void determineState() {
 	  double customerPercentage = calculatePercentage(consumptionCustomers, consumptionCustomersTotal) ;
-      if (customerPercentage > 50) {
+      if (customerPercentage > 50 + weatherBoundOffset) {
     	  state = State.NORMAL;
     	  state_duration = 0;
     	  return;
       }
       
-      if( customerPercentage < params.CONS_COUNT_LOWEST_BOUND + lowerBoundOffset  ) {
+      if( customerPercentage < params.CONS_COUNT_LOWEST_BOUND + lowerBoundOffset + weatherBoundOffset  ) {
     	  if(state == State.NORMAL) {
     		  state_duration += Parameters.reevaluationCons;  
     		  System.out.println("UNDER 30%: " + state_duration + " timeslots");
@@ -976,6 +940,38 @@ private ApplicationContext ctx;
       if(state != State.NORMAL) {
 			System.out.println("-State : \t" + state.toString());	
 		}
+  }
+  
+  private void setMonthBoundedVariables() {
+	  
+	  weatherBoundOffset = 0;
+	  if(lowerBoundOffset != 0) {		  
+		  return;
+	  }
+	  
+	  if(marketManager.getComp().getLatitude() >= 42 ) {
+		  
+		  if(currentMonth == 11 && currentDay > 15) {			  
+			  weatherBoundOffset = -5;			  
+		  }else if (currentMonth == 12 || currentMonth == 1 || currentMonth == 2  ) {
+			  weatherBoundOffset = -5;
+		  }
+		  
+	  }else if(marketManager.getComp().getLatitude() >= 37 ) {		  
+		  
+		  if (currentMonth == 12 || currentMonth == 1   ) {
+			  weatherBoundOffset = -5;
+		  }
+	  }else if(marketManager.getComp().getLatitude() >= 30 ) {		  
+		  
+		  if (currentMonth == 6 || currentMonth == 7 || currentMonth == 8   ) {
+			  weatherBoundOffset = -2.5;
+		  }
+	  }
+	  
+	  
+	  
+	  return;
   }
   
   private void calculateCustomerCounts() {
@@ -1042,8 +1038,7 @@ private int remainingActiveTariff(PowerType pt) {
 	  if((timeslotIndex - 1 - 360) % 168 == 0 && timeslotIndex != 361) {
 		  peakDemand[0] = 0;
 		  peakDemand[1] = 0;
-		  peakDemand[2] = 0;
-		  
+		  peakDemand[2] = 0;		  
 	  }
 	  
 	  if(timeslotIndex >= 360) {
@@ -1143,6 +1138,7 @@ private int remainingActiveTariff(PowerType pt) {
 		  System.out.println(params.CONS_COUNT_LOWER_BOUND + " Offset: " + lowerBoundOffset);
 		  System.out.println(params.CONS_COUNT_MIDDLE_BOUND + " Offset: " + middleBoundOffset);
 		  System.out.println(params.CONS_COUNT_UPPER_BOUND);
+		  System.out.println("WeatherBoundOffset: " + weatherBoundOffset);
 		  System.out.printf("Total Cons Profits: \t % 11.2f\n",totalConsumptionProfits);
 		  System.out.printf("Total Wind Profits: \t % 11.2f\n",totalWindProfits);
 		  System.out.printf("Total Solar Profits: \t % 11.2f\n",totalSolarProfits);
@@ -1269,34 +1265,7 @@ private int remainingActiveTariff(PowerType pt) {
 		  	  	  
 	  
   }
-  /*
-  //calculate the weights for the tou rates
-  private void calculateWeights() {
-	  
-	  double clearingPriceWd[] = marketManager.getAvgClearingPriceWd();
-	  double clearingPriceWe[] = marketManager.getAvgClearingPriceWe();
-	  double netUsageWd[] = marketManager.getAvgNetusageWd();
-	  double netUsageWe[] = marketManager.getAvgNetusageWe();
-	  double wWe[] = new double[24];
-	  double wWd[] = new double[24];
-	  double sumWe = 0, sumWd = 0;
-	  //TOU formula
-	  for(int i = 0; i<24 ; i++) {
-		  wWd[i] = clearingPriceWd[i]*netUsageWd[i];
-		  wWe[i] = clearingPriceWe[i]*netUsageWe[i];
-		  
-		  sumWe += wWe[i];
-		  sumWd += wWd[i];  
-	  }
-	  //normalize
-	  for(int i = 0; i<24 ; i++) {
-		  wWd[i] *= 24/sumWd;
-		  wWe[i] *= 24/sumWe;
-	  }  
-	  weightWe = wWe;
-	  weightWd = wWd;
-  }
-  */
+
   
   //calculate the weights for the tou rates using predictor
   private void calculateWeightsPredictor() {
@@ -1729,17 +1698,7 @@ private int remainingActiveTariff(PowerType pt) {
 	  
 	  bestEWP = minTariff.getEarlyWithdrawPayment();
 	  return min;
-  }
-  
-	@SuppressWarnings("unused")
-	private double calculateAvgProdRate(TariffSpecification t , double avg) {		
-		if(t == null) {
-			System.out.println("CHECKKKK");
-			return avg;
-		}
-		double tmp = avg + t.getPeriodicPayment()/20- 0.015;			  
-		return tmp;
-	}
+  } 
 	
 	public void setBalancingCosts(double imbalance) {
 		totalAssessmentBalancingCosts += imbalance;
@@ -1989,17 +1948,20 @@ private int remainingActiveTariff(PowerType pt) {
   
   private void printDemandPeaks() {
   	System.out.println("Date: " + timeslotRepo.currentTimeslot().getStartInstant().toString());
-		double[] d = new double[2];
-		d = calcDemandMeanDeviation();
-	
-		System.out.printf("Current| Threshold: %.2f \t Peaks| ",  (d[0] + gamaParameter*d[1]) );
-		currentThreshold = (d[0] + gamaParameter*d[1]);
-		for(int p = 0; p < 3 ; p++) { 
-			if(peakDemand[p] != 0) {
-				System.out.printf("\t Ts: %d  %.2f KWh",peakDemandTS[p],peakDemand[p]); 
-			}    			
-		}
-		System.out.println("");
+  	currentDay = timeslotRepo.currentTimeslot().getStartInstant().toDateTime().getDayOfMonth();
+  	currentMonth =  timeslotRepo.currentTimeslot().getStartInstant().toDateTime().getMonthOfYear();
+  	
+	double[] d = new double[2];
+	d = calcDemandMeanDeviation();
+
+	System.out.printf("Current| Threshold: %.2f \t Peaks| ",  (d[0] + gamaParameter*d[1]) );
+	currentThreshold = (d[0] + gamaParameter*d[1]);
+	for(int p = 0; p < 3 ; p++) { 
+		if(peakDemand[p] != 0) {
+			System.out.printf("\t Ts: %d  %.2f KWh",peakDemandTS[p],peakDemand[p]); 
+		}    			
+	}
+	System.out.println("");
   }
   
   public double getCurrentThreshold() {
