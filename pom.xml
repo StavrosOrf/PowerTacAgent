@@ -67,21 +67,7 @@
         <version>2.5.3</version> 
 </dependency>
     
-      <dependency>      
-    <groupId>org.deeplearning4j</groupId>      
-    <artifactId>deeplearning4j-core</artifactId>
-    <version>1.0.0-beta6</version>    
-  </dependency>         
-  <dependency>      
-    <groupId>org.deeplearning4j</groupId>      
-    <artifactId>deeplearning4j-modelimport</artifactId>      
-    <version>1.0.0-beta6</version>    
-  </dependency>                       
-  <dependency>      
-    <groupId>org.nd4j</groupId>      
-    <artifactId>nd4j-native-platform</artifactId>
-    <version>1.0.0-beta6</version>    
-  </dependency>
+
   <dependency>      
     <groupId>org.eclipse.jetty</groupId>      
     <artifactId>jetty-server</artifactId>      
@@ -92,27 +78,6 @@
     <version>2.2.0</version>     
   </dependency>
   
-  <dependency>
-    <groupId>org.apache.derby</groupId>
-    <artifactId>derbyclient</artifactId>
-    <version>10.15.2.0</version>
-</dependency>
-<dependency>
-    <groupId>org.apache.derby</groupId>
-    <artifactId>derbytools</artifactId>
-    <version>10.15.2.0</version>
-</dependency>
-<dependency>
-    <groupId>org.apache.derby</groupId>
-    <artifactId>derbyshared</artifactId>
-    <version>10.15.2.0</version>
-</dependency>
-
-<dependency>
-    <groupId>org.apache.derby</groupId>
-    <artifactId>derby</artifactId>
-    <version>10.15.2.0</version>
-</dependency>
 <dependency>
 	<groupId>org.apache.poi</groupId>
 	<artifactId>poi</artifactId>
