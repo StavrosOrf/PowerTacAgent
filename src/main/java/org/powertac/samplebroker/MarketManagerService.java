@@ -231,6 +231,7 @@ implements MarketManager, Initializable, Activatable
 		System.out.print(s+ " ");
 	}
     System.out.println("");
+    System.out.println("Latitude: " + comp.getLatitude() + " Timezone Offset: " + comp.getTimezoneOffset());
     this.comp = comp;
     startTime = comp.getSimulationBaseTime();
     
