@@ -43,9 +43,6 @@ import org.powertac.common.msg.BalanceReport;
 import org.powertac.common.msg.DistributionReport;
 import org.powertac.common.msg.MarketBootstrapData;
 import org.powertac.common.repo.TimeslotRepo;
-import org.powertac.samplebroker.assistingclasses.WeatherData;
-import org.powertac.samplebroker.assistingclasses.WeatherDataWithPeaks;
-import org.powertac.samplebroker.assistingclasses.WeatherDataWithUsage;
 import org.powertac.samplebroker.core.BrokerPropertiesService;
 import org.powertac.samplebroker.interfaces.Activatable;
 import org.powertac.samplebroker.interfaces.BrokerContext;
@@ -54,8 +51,6 @@ import org.powertac.samplebroker.interfaces.Initializable;
 import org.powertac.samplebroker.interfaces.MarketManager;
 import org.powertac.samplebroker.interfaces.PortfolioManager;
 import org.powertac.samplebroker.utility.Node;
-import org.powertac.samplebroker.utility.ObjectToJson;
-import org.powertac.samplebroker.utility.EnergyPredictor;
 import org.powertac.samplebroker.utility.ExcelWriter;
 import org.powertac.samplebroker.utility.TeePrintStream;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -86,7 +81,6 @@ implements MarketManager, Initializable, Activatable
   @Autowired
   private ContextManager contextManager;
   
-  private EnergyPredictor energyPredictor;
   private ExcelWriter excelWriter;
 
   // ------------ Configurable parameters --------------
@@ -128,8 +122,7 @@ implements MarketManager, Initializable, Activatable
   private double clearingPricesWe[] = new double[24];
   private double clearingPricesWd[] = new double[24];
   private int tradesPassedWe[] = new int[24];
-  private int tradesPassedWd[] = new int[24];
-  private int trainingTimer = 0;
+  private int tradesPassedWd[] = new int[24];  
   private CapacityTransaction[] capacityFees = new CapacityTransaction[3];
   
   private double netUsagePredictorWe[] = new double[24];
@@ -145,9 +138,6 @@ implements MarketManager, Initializable, Activatable
   private double totalWholesaleCosts[] = new double[2];
   private double totalWholesaleEnergy[] = new double[2];
   
-//  private double totalPredictedEnergyKWH = 0;
-  private WeatherReport prevWeatherReport = null;
-  
 //  private ArrayList<>
   
   public Competition comp;
@@ -156,9 +146,6 @@ implements MarketManager, Initializable, Activatable
   
   private Instant startTime = null;
   
-  private ArrayList<WeatherDataWithUsage> weatherDatas;
-  private ArrayList<WeatherDataWithPeaks> weatherDatasPeaks;
-
   public MarketManagerService ()
   {
     super();
@@ -182,10 +169,7 @@ implements MarketManager, Initializable, Activatable
     else {
       randomGen = new Random();
     }
-    
-    weatherDatas = new ArrayList<WeatherDataWithUsage>();
-    weatherDatasPeaks = new ArrayList<WeatherDataWithPeaks>();
-    
+
     for(int i = 0 ; i<24 ; i++) {
     	clearingPricesWe[i] = 30;
     	clearingPricesWd[i] = 30;
@@ -197,13 +181,7 @@ implements MarketManager, Initializable, Activatable
     	netUsageCounterWe[i] = 1;
     	netUsageCounterWd[i] = 1;
     }
-    
-    
-    energyPredictor = new EnergyPredictor();
-    energyPredictor.resetModels();
-    System.out.println("t");
-
-
+        
   }
 
   // ----------------- data access -------------------
@@ -314,7 +292,7 @@ implements MarketManager, Initializable, Activatable
 			+ "========================================================");
 //	System.out.println("ts: " + dt.getPeakTimeslot() + "  " + dt.getBroker().getUsername()
 //			+ "  " + dt.getKWh() + "  " + dt.getThreshold() + "  " + dt.getCharge() );
-	System.out.printf("CapacityTransaction| peak ts:%5d Energy: %8.2f KWh ThreshHold: %8.2f  Costs: %10.2f €\n", 
+	System.out.printf("CapacityTransaction| peak ts:%5d Energy: %8.2f KWh ThreshHold: %8.2f  Costs: %10.2f E\n", 
 						dt.getPeakTimeslot(),dt.getKWh(),dt.getThreshold(), dt.getCharge());
 	System.out.println("======================================================================================="
 			+ "========================================================");
@@ -405,45 +383,19 @@ implements MarketManager, Initializable, Activatable
 	  double results[] = new double[24];
 	  for(int i = 0; i < 24; i++) {
       	results[i] = -1;
-      }
-	  
-	  ArrayList<WeatherData> weatherlist = new ArrayList<WeatherData>();
-	  
-	  for(WeatherForecastPrediction f : forecast.getPredictions()) {
-		  
-		  hour = getTimeSlotHour(ts + f.getForecastTime());
-		  day = getTimeSlotDay(ts + f.getForecastTime());
-		  
-		  weatherlist.add(new WeatherData(day, hour, ts+f.getForecastTime(), f.getTemperature(), f.getWindSpeed(), f.getWindDirection(), f.getCloudCover()));
-	  }
-	  ObjectToJson.toJSON(forecast);
-	  ObjectToJson.toJSONForecast(weatherlist);
+      }	  
 	  
 	  hour = getTimeSlotHour(ts);
 	  day = getTimeSlotDay(ts);
 
-      if(ts > 370 && trainingTimer == 0) {
-          results = energyPredictor.predict();
-//          if(results[0] == 0) {
-//        	  if(energyPredictor.getFailure_counter() < EnergyPredictor.getALLOWED_TIMEOUTS()) {
-//        		  System.out.println("FAIL in prediction");
-//        	  }                  
-//                  results = rndPredictor();
-//          }
-      }
-	  
+      results = rndPredictor();
+      
 	  for(WeatherForecastPrediction f : forecast.getPredictions()) {
 		  
 		  hour = getTimeSlotHour(ts + f.getForecastTime());
 		  day = getTimeSlotDay(ts + f.getForecastTime());
 		  
-//		  int tempValue = 0;
-//		  if( results[counter] > portfolioManager.getCurrentThreshold() + Parameters.THRESHOLD_OFFSET) {
-//			  tempValue = 1;
-//		  }
-//		  excelWriter.writeCell(forecast.getTimeslotIndex() + f.getForecastTime() - 360 , f.getForecastTime() + 2 + 28, results[counter],false);
-//		  
-		  excelWriter.writeCell(forecast.getTimeslotIndex() + f.getForecastTime() - 360 , f.getForecastTime() + 2, results[counter],false);
+//		  excelWriter.writeCell(forecast.getTimeslotIndex() + f.getForecastTime() - 360 , f.getForecastTime() + 2, results[counter],false);
 		  		  
 		  if(day < 6) {
 			  netUsagePredictorWd[hour] = (1 + results[counter]) * 1000;
@@ -459,67 +411,7 @@ implements MarketManager, Initializable, Activatable
    * Receives a new WeatherReport.
    */
   public synchronized void handleMessage (WeatherReport report)
-  {
-	  int hour = getTimeSlotHour( report.getTimeslotIndex());
-	  int day = getTimeSlotDay( report.getTimeslotIndex());	  
-	  
-//	  WeatherData w = new WeatherData(day, hour,report.getTimeslotIndex(), report.getTemperature(), report.getWindSpeed(),
-//			  									report.getWindDirection(), report.getCloudCover());
-//	  
-	  WeatherDataWithUsage ww = new WeatherDataWithUsage(day, hour,report.getTimeslotIndex(), report.getTemperature(), report.getWindSpeed(),
-														report.getWindDirection(), report.getCloudCover(),0);
-	  
-	  boolean t = false;
-	  WeatherDataWithPeaks www = new WeatherDataWithPeaks(day, hour,report.getTimeslotIndex(), report.getTemperature(),
-			  						report.getWindSpeed(),report.getWindDirection(), report.getCloudCover(),0,t);	  
-	  
-	  if(report.getTimeslotIndex() < 360) {
-		  weatherDatas.add(ww);
-		  weatherDatasPeaks.add(www);
-	  }	  
-	  
-	  if(report.getTimeslotIndex()< 360) {
-		  prevWeatherReport = report;
-		  return;
-	  }
-	  int temp = prevWeatherReport.getTimeslotIndex();
-//	  System.out.println("Weather| ts: " + temp +" " + prevWeatherReport.getCloudCover() );
-//	  DistributionReport d = contextManager.getReport();
-//	  System.out.println("Actual Demand Ts: " + temp + "\t" + contextManager.getUsage(temp) + " KWh");
-	  
-	  hour = getTimeSlotHour( prevWeatherReport.getTimeslotIndex());
-	  day = getTimeSlotDay( prevWeatherReport.getTimeslotIndex());	  
-	  
-	  ww = new WeatherDataWithUsage(day, hour,prevWeatherReport.getTimeslotIndex(), prevWeatherReport.getTemperature(),
-			   prevWeatherReport.getWindSpeed(),prevWeatherReport.getWindDirection(), prevWeatherReport.getCloudCover(),
-			   contextManager.getUsage(temp)/1000);
-	  
-	  
-	  ObjectToJson.toJSONFitUsage(ww);
-	  
-	  
-//	  System.out.println("Temp: " + contextManager.getUsage(temp) + " Threshold: " + portfolioManager.getCurrentThreshold() + 5000);
-	  if(portfolioManager.getCurrentThreshold() + Parameters.THRESHOLD_OFFSET < contextManager.getUsage(temp)) {		  
-		  t = true;
-	  }
-	  
-	  www = new WeatherDataWithPeaks(day, hour,prevWeatherReport.getTimeslotIndex(), prevWeatherReport.getTemperature(),
-			   prevWeatherReport.getWindSpeed(),prevWeatherReport.getWindDirection(), prevWeatherReport.getCloudCover()
-			   ,contextManager.getUsage(temp)/1000,t);	  
-	  
-	  if(report.getTimeslotIndex() > 371) {
-		  ObjectToJson.toJSONPeaks(www);
-		  //TODO call PEAKS from predictor
-	  }
-	  
-	  if(contextManager.getUsage(temp) == 0 && report.getTimeslotIndex() > 371 ) {
-		  System.out.println("Error in fitUsage creation");
-	  }else if(report.getTimeslotIndex() > 371 && trainingTimer == 0){
-		  energyPredictor.fitData();
-	  }
-	  
-//	  portfolioManager.setBatchWeather(w);
-	  
+  {    
 	  if((report.getTimeslotIndex() - 360) % 25 == 0 )
 		  excelWriter.writeCell(0,0,0,true);
 
@@ -536,8 +428,6 @@ implements MarketManager, Initializable, Activatable
 	  }
 	  excelWriter.writeCell(dr.getTimeslot()-360,30,tempValue,false);
 	 
-	  
-	  prevWeatherReport = report;
   }
 
   /**
@@ -564,15 +454,7 @@ implements MarketManager, Initializable, Activatable
   public synchronized void activate (int timeslotIndex)
   {
 	updateUsage(portfolioManager.collectUsage(timeslotIndex), timeslotIndex); 
-	double neededKWh = 0.0;
-	
-	  if((timeslotIndex-360) % 168 == 0 && timeslotIndex != 360) {
-		  //TODO call retrain
-		  System.out.println("Re-train!!!!!");
-		  energyPredictor.retraintData((int) Math.round(portfolioManager.getCurrentThreshold()));
-		  trainingTimer = 10;
-		  
-	  }
+	double neededKWh = 0.0;	
 	
     log.debug(" Current timeslot is " + timeslotIndex);
     System.out.println("\n|------------------------------------|  Current timeslot is " + timeslotIndex 
@@ -587,12 +469,7 @@ implements MarketManager, Initializable, Activatable
       submitBidMCTS(neededKWh,timeslotIndex, timeslot.getSerialNumber());
  
     }
-    
-	  trainingTimer --;
-	  if(trainingTimer < 0) {
-		  trainingTimer = 0;
-	  }
-    
+
   }
   void printAboutTimeslot(Timeslot t) {
 	  if(WH_PRINT_ON)
@@ -1046,29 +923,6 @@ public void resetCapacityFees() {
 	}
 }
 
-public void generateWeatherBootJSON() {
-	ObjectToJson.toJSONWeather(weatherDatas);
-	ObjectToJson.toJSONPeak(weatherDatasPeaks);
-	System.out.println("--");
-}
-
-public void setUsageInBoot(double[] usage,double threshold) {
-	for(WeatherDataWithUsage w : weatherDatas) {
-		w.setNetUsageMWh(-usage[w.getTimeslot()-24]/1000);
-	}
-	System.out.println("Threshold from Boot: " + threshold);
-	boolean t = false;
-	for(WeatherDataWithPeaks w : weatherDatasPeaks) {		
-//		System.out.println("Timeslot: " +w.getTimeslot() + "  Threshold:" + threshold + "  Demand: " + Math.abs(usage[w.getTimeslot()-24]));
-		t = false;
-		if(Math.abs(usage[w.getTimeslot()-24]) > (threshold + Parameters.THRESHOLD_OFFSET)) {
-			t = true;
-		}
-		w.setPeak(t);
-		w.setNetUsageMWh(-usage[w.getTimeslot()-24]/1000);
-	}
-}
-
 private double[] rndPredictor() {
 	double result[] = new double[24];
 	
@@ -1078,9 +932,7 @@ private double[] rndPredictor() {
 	return result;
 }
 
-public void trainpredictor() {
-    energyPredictor.trainBootData();
-}
+
   
   
 }

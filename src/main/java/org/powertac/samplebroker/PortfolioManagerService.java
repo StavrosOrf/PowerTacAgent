@@ -44,10 +44,6 @@ import org.powertac.common.msg.TariffStatus;
 import org.powertac.common.repo.CustomerRepo;
 import org.powertac.common.repo.TariffRepo;
 import org.powertac.common.repo.TimeslotRepo;
-import org.powertac.samplebroker.assistingclasses.Customer;
-import org.powertac.samplebroker.assistingclasses.CustomerUsage;
-import org.powertac.samplebroker.assistingclasses.TimeslotUsage;
-import org.powertac.samplebroker.assistingclasses.WeatherData;
 import org.powertac.samplebroker.core.BrokerPropertiesService;
 import org.powertac.samplebroker.interfaces.Activatable;
 import org.powertac.samplebroker.interfaces.BrokerContext;
@@ -56,7 +52,6 @@ import org.powertac.samplebroker.interfaces.Initializable;
 import org.powertac.samplebroker.interfaces.MarketManager;
 import org.powertac.samplebroker.interfaces.PortfolioManager;
 import org.powertac.samplebroker.utility.ExcelWriter;
-import org.powertac.samplebroker.utility.ObjectToJson;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
@@ -173,9 +168,6 @@ implements PortfolioManager, Initializable, Activatable
   
   private boolean secondaryTariffEn = false;
   
-  private ArrayList<CustomerUsage> subscriptionList ;
-  private ArrayList<Customer> customerList ;
-  private ArrayList<TimeslotUsage> trainingBatch;
   int trainingCounter = 0;
   
   Parameters params;
@@ -240,10 +232,7 @@ private ApplicationContext ctx;
 	params = ctx.getBean(Parameters.class);
 	
 	LowerBoundABS= params.LowerBoundStaticAbsolute;
-	customerList = new ArrayList<Customer>();
-	trainingBatch = new ArrayList<TimeslotUsage>();
-	subscriptionList = new ArrayList<CustomerUsage>();
-	
+
     Random ran = new Random();
     timer = -ran.nextInt(Parameters.reevaluationCons + 2) + 2;
     state = State.NORMAL;
@@ -359,9 +348,7 @@ private ApplicationContext ctx;
 	  for (int i = 0; i < cbd.getNetUsage().length; i++) {
     	record.produceConsume(cbd.getNetUsage()[i], i);
 	  }
-	  record.subscribedPopulation = subs;
-	  
-	  customerList.add(new Customer(cbd.getCustomerName(), cbd.getPowerType(), cbd.getNetUsage()));	  
+	  record.subscribedPopulation = subs;	  	 
 	  
 	  for(int i=0; i<360 && i<cbd.getNetUsage().length;i++) {
 		  bootsrapUsage[i] += cbd.getNetUsage()[i];
@@ -464,7 +451,7 @@ private ApplicationContext ctx;
     	totalEnergyUsed[ttx.getPostedTimeslotIndex()] += ttx.getKWh();
       // customers presumably found a better deal
       record.withdraw(ttx.getCustomerCount());
-      removeCustomer(ttx);
+      
     }
     else if (TariffTransaction.Type.PRODUCE == txType) {
       // if ttx count and subscribe population don't match, it will be hard
@@ -481,14 +468,6 @@ private ApplicationContext ctx;
       log.info("TTX Produce: " +ttx.getCharge() + " , " + ttx.getId() 
       	+ " , " + ttx.getBroker() + " , " + ttx.getTariffSpec().getPowerType().getGenericType());
       
-      CustomerUsage c = new CustomerUsage(ttx.getCustomerInfo().getName(), ttx.getKWh()/1000, ttx.getCustomerCount(),
-    		  							ttx.getCustomerInfo().getPopulation(), ttx.getCustomerInfo().isMultiContracting());
-      for ( TimeslotUsage t : trainingBatch) {
-    	  if(t.getTimeslot() == ttx.getPostedTimeslot().getSerialNumber()) {
-    		  t.getC().add(c);
-    		  break;
-    	  }
-      }
 //      System.out.printf("Produce! Name: %35s , Count: %7d , Charge: %7.2f , Energy: % 10.2f Total: %7d\n",
 //	  			ttx.getCustomerInfo().getName(),ttx.getCustomerCount(),ttx.getCharge(),ttx.getKWh(),ttx.getCustomerInfo().getPopulation());
     }
@@ -503,17 +482,7 @@ private ApplicationContext ctx;
       record.produceConsume(ttx.getKWh(), ttx.getPostedTime());
       double currentCharge = tariffCharges.get(ttx.getTariffSpec());
       tariffCharges.put(ttx.getTariffSpec(),currentCharge+ ttx.getCharge());
-      
-      CustomerUsage c = new CustomerUsage(ttx.getCustomerInfo().getName(), ttx.getKWh()/1000, ttx.getCustomerCount(),
-				ttx.getCustomerInfo().getPopulation(), ttx.getCustomerInfo().isMultiContracting());
-      
-      for ( TimeslotUsage t : trainingBatch) {
-    	  if(t.getTimeslot() == ttx.getPostedTimeslot().getSerialNumber()) {
-    		  t.getC().add(c);
-    	  		break;
-    	  }
-      }
-      
+ 
 //      System.out.printf("Consume| Name: %35s , Count: %7d , Charge: %7.2f , Energy: % 10.2f Total: %7d\n",
 //	  			ttx.getCustomerInfo().getName(),ttx.getCustomerCount(),ttx.getCharge(),ttx.getKWh(),ttx.getCustomerInfo().getPopulation());
     }
@@ -537,7 +506,6 @@ private ApplicationContext ctx;
         tariffCharges.put(ttx.getTariffSpec(),currentCharge+ ttx.getCharge());
     }
     else if (TariffTransaction.Type.SIGNUP == txType) {
-    	addCustomer(ttx);
         record.signup(ttx.getCustomerCount());        
     	totalEnergyUsed[ttx.getPostedTimeslotIndex()] += ttx.getKWh();
     	log.info("TTX Signup: " +ttx.getCharge() + " , " + ttx.getId() 
@@ -625,20 +593,7 @@ private ApplicationContext ctx;
 		  if (triggerEvaluation == true && timeslotIndex > 370) {
 			  triggerEvaluationTS = timeslotIndex ;
 			  triggerEvaluation = false;
-		  }
-		  
-		  if(timeslotIndex == 361) {
-			  double[] d = new double[2];
-			  d = calcDemandMeanDeviation();			
-			  currentThreshold = (d[0] + gamaParameter*d[1]);
-			  
-			  ObjectToJson.toJSON(customerList);
-			  marketManager.setUsageInBoot(bootsrapUsage,currentThreshold);
-			  marketManager.generateWeatherBootJSON();
-			  
-			  marketManager.trainpredictor();
-			  // call the initial predictor trainer
-		  }
+		  }		  
 
 		  //Reevaluate Power and thermal tariffs
 		  if((timeslotIndex-360 + 70) % 168 == 0) { // && timeslotIndex != 458) {
@@ -646,10 +601,6 @@ private ApplicationContext ctx;
 			  System.out.println("\nMIDDLE-evaluation!!!!!\n");			 		 
 		  }
 		  
-		  //call total demand predictor 
-		  //call our subscription demand predictor
-		  ObjectToJson.toJSONSubs(subscriptionList);
-		  		  
 //		  System.out.printf("-->Energy Usage: %.2f KWh   ts %d \n",totalEnergyUsed[timeslotIndex-1],timeslotIndex-1);
 		  totalEnergyused += totalEnergyUsed[timeslotIndex-1];
 		  
@@ -665,17 +616,6 @@ private ApplicationContext ctx;
 	        		timer = 0;
 	    	  }
 	    	  
-	    	  if (trainingCounter <= 0) {
-	    		  ObjectToJson.toJSONBatch(trainingBatch);
-	    		  setUpTrainingBatch(timeslotIndex);
-	    		  trainingCounter = Parameters.batchSize;
-	    		  if (timeslotIndex > 361) {
-	    			  
-	    			// call online trainer  
-	    		  }
-	    	  }
-	    	  
-	    	  trainingCounter --;
 	    	  timer ++;	    	  
 	      }	
 	  } catch (Exception e) {
@@ -799,58 +739,7 @@ private ApplicationContext ctx;
 	  }
   }
     
-  private void removeCustomer(TariffTransaction ttx) {
-	  CustomerUsage temp = null;
-	  for(CustomerUsage c : subscriptionList) {
-		  if(c.getCustomerName().equals(ttx.getCustomerInfo().getName())) {
-			  c.setCount(c.getCount() - ttx.getCustomerCount());
-			  
-			  if(c.getCount() > 0) {
-				  return;
-			  }
-			  temp = c;
-		  }
-	  }
-	  
-	  if (temp != null) {
-		  subscriptionList.remove(temp);
-		  return;
-	  }
-	  
-	  System.out.println("Customer Not FOUND!!!!");
-  }
-  
-  private void addCustomer(TariffTransaction ttx) {
-	  for(CustomerUsage c : subscriptionList) {
-		  if(c.getCustomerName().equals(ttx.getCustomerInfo().getName())) {
-			  c.setCount(c.getCount() + ttx.getCustomerCount());
-			  return;
-		  }
-	  }
-	  subscriptionList.add(new CustomerUsage(ttx.getCustomerInfo().getName(), 0, ttx.getCustomerCount(),
-			  				ttx.getCustomerInfo().getPopulation(), ttx.getCustomerInfo().isMultiContracting()));	    
-  }
-  
-  private void setUpTrainingBatch(int timeslot) {
-	  trainingBatch.clear();
-	  int t = timeslot;
-	  for(int i = 0 ; i < Parameters.batchSize ; i++) {
-		  t++;
-		  trainingBatch.add(new TimeslotUsage(t));
-	  }
-  }
-  
-  public void setBatchWeather(WeatherData w) {
-	  
-      for ( TimeslotUsage t : trainingBatch) {
-    	  if(t.getTimeslot() == w.getTimeslot()) {
-    		  t.setWeather(w);    		  
-    		  return;
-    	  }
-      }
-      System.out.println("setbatch weather NOT FOUND!!!!!!!!!");
-  }
-  
+
   private void resetGlobalCounters() {
 		totalEnergyused = 0;
 		marketManager.setTotalBalancingEnergy(0);
