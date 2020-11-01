@@ -1,9 +1,31 @@
-package org.powertac.samplebroker;
+/*
+ * Copyright (c) 2012-2014 by the original author
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.powertac.samplebroker.utility;
 
 import java.util.ArrayList;
 import java.util.Random;
 
+import org.powertac.samplebroker.Parameters;
 
+/**
+ * This class represent a node of the monte carlo tree search in the wholesale
+ * bidding 
+ * 
+ * @author Stavros Orfanoudakis
+ */
 
 
 //A Node 
@@ -53,8 +75,10 @@ public class Node{
 			  children.add(n);
 		  }
 		  // add a NO_BID action
-		  Node n = new Node(NO_BID, this, 0, hoursAhead);
-		  children.add(n);
+		  if(hoursAhead > 1) {
+			  Node n = new Node(NO_BID, this, 0, hoursAhead);
+			  children.add(n);
+		  }
 	  }
 	  public void generateNodeKids(double limitPrice) {
 		  double minPrice = limitPrice + D_MIN*OBSERVED_DEVIATION;

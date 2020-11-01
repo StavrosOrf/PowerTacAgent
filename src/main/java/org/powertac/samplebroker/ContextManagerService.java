@@ -23,6 +23,7 @@ import org.powertac.common.Competition;
 import org.powertac.common.msg.DistributionReport;
 import org.powertac.samplebroker.core.BrokerPropertiesService;
 import org.powertac.samplebroker.interfaces.BrokerContext;
+import org.powertac.samplebroker.interfaces.ContextManager;
 import org.powertac.samplebroker.interfaces.Initializable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -33,14 +34,24 @@ import org.springframework.stereotype.Service;
  */
 @Service
 public class ContextManagerService
-implements Initializable
+implements Initializable,ContextManager
 {
   static private Logger log = LogManager.getLogger(ContextManagerService.class);
 
-  @Autowired
+  public ContextManagerService() {
+	super();
+  }
+
+@Autowired
   private BrokerPropertiesService propertiesService;
 
   BrokerContext master;
+  
+  private double totalActualEnergy = 0;
+  private double lastActualEnergy = 0;
+  private DistributionReport report = null;
+  
+  private double[] reportArray = new double[5000];
 
   // current cash balance
   private double cash = 0;
@@ -74,6 +85,7 @@ implements Initializable
   public void handleMessage (BankTransaction btx)
   {
     // TODO - handle this
+//	  System.out.println("BANK transaction : "+ btx.getPostedTimeslot() + "  Interest: " + btx.getAmount());
   }
 
   /**
@@ -92,9 +104,20 @@ implements Initializable
   public void handleMessage (DistributionReport dr)
   {
     // TODO - use this data
+	  // it reports usage for PREVIOUS timeslot => ts = ts -1
+//	  System.out.printf("DR: Timeslot %d Production: %.2f  Consumption:  %.2f  Demand: %.2f \n",
+//			  				dr.getTimeslot(), dr.getTotalProduction(),dr.getTotalConsumption(),dr.getTotalConsumption()-dr.getTotalProduction());
+	  report = dr;
+	  lastActualEnergy = dr.getTotalConsumption();
+	  if(dr.getTimeslot()>361)
+		  totalActualEnergy += dr.getTotalConsumption();
+	  
+	  reportArray[dr.getTimeslot()] = dr.getTotalConsumption()-dr.getTotalProduction();
   }
   
-  /**
+
+
+/**
    * Handles the Competition instance that arrives at beginning of game.
    * Here we capture all the customer records so we can keep track of their
    * subscriptions and usage profiles.
@@ -111,4 +134,28 @@ implements Initializable
   {
     // TODO - adapt to the server setup.
   }
+
+public DistributionReport getReport() {
+	return report;
+}
+
+public double getLastActualEnergy() {
+	return lastActualEnergy;
+}
+
+public void setReport(DistributionReport report) {
+	this.report = report;
+}
+
+@Override
+public double totalActualEnergy() {
+	return totalActualEnergy;
+}
+
+public double getUsage(int timeslot) {
+	return reportArray[timeslot];
+}
+  
+  
+  
 }

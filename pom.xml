@@ -15,12 +15,12 @@
   <parent>
     <groupId>org.powertac</groupId>
     <artifactId>powertac-parent</artifactId>
-    <version>1.7.0-SNAPSHOT</version>
+    <version>1.8.0-SNAPSHOT</version>
     <relativePath />
   </parent>
 
   <properties>
-    <powertac.version>1.7.0-SNAPSHOT</powertac.version>
+    <powertac.version>1.8.0-SNAPSHOT</powertac.version>
     <exec.args></exec.args>
     <syst.args></syst.args>
   </properties>
@@ -59,6 +59,71 @@
       <version>${mockito.version}</version>
       <scope>test</scope>
     </dependency>
+    
+    
+<dependency> 
+        <groupId>com.fasterxml.jackson.core</groupId> 
+        <artifactId>jackson-databind</artifactId> 
+        <version>2.5.3</version> 
+</dependency>
+    
+      <dependency>      
+    <groupId>org.deeplearning4j</groupId>      
+    <artifactId>deeplearning4j-core</artifactId>
+    <version>1.0.0-beta6</version>    
+  </dependency>         
+  <dependency>      
+    <groupId>org.deeplearning4j</groupId>      
+    <artifactId>deeplearning4j-modelimport</artifactId>      
+    <version>1.0.0-beta6</version>    
+  </dependency>                       
+  <dependency>      
+    <groupId>org.nd4j</groupId>      
+    <artifactId>nd4j-native-platform</artifactId>
+    <version>1.0.0-beta6</version>    
+  </dependency>
+  <dependency>      
+    <groupId>org.eclipse.jetty</groupId>      
+    <artifactId>jetty-server</artifactId>      
+    <version>9.4.9.v20180320</version>   
+  </dependency>  <dependency>      
+    <groupId>com.google.cloud.dataflow</groupId>      
+    <artifactId>google-cloud-dataflow-java-sdk-all</artifactId>  
+    <version>2.2.0</version>     
+  </dependency>
+  
+  <dependency>
+    <groupId>org.apache.derby</groupId>
+    <artifactId>derbyclient</artifactId>
+    <version>10.15.2.0</version>
+</dependency>
+<dependency>
+    <groupId>org.apache.derby</groupId>
+    <artifactId>derbytools</artifactId>
+    <version>10.15.2.0</version>
+</dependency>
+<dependency>
+    <groupId>org.apache.derby</groupId>
+    <artifactId>derbyshared</artifactId>
+    <version>10.15.2.0</version>
+</dependency>
+
+<dependency>
+    <groupId>org.apache.derby</groupId>
+    <artifactId>derby</artifactId>
+    <version>10.15.2.0</version>
+</dependency>
+<dependency>
+	<groupId>org.apache.poi</groupId>
+	<artifactId>poi</artifactId>
+	<version>3.14-beta1</version>
+</dependency>
+
+<dependency>
+	<groupId>org.apache.poi</groupId>
+	<artifactId>poi-ooxml</artifactId>
+	<version>3.14-beta1</version>
+</dependency>
 
   </dependencies>
 

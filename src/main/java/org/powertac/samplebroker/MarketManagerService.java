@@ -15,13 +15,15 @@
  */
 package org.powertac.samplebroker;
 
-import java.awt.List;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Random;
 
 import org.apache.logging.log4j.Logger;
+import org.joda.time.DateTimeFieldType;
+import org.joda.time.Instant;
 import org.apache.logging.log4j.LogManager;
 import org.powertac.common.BalancingTransaction;
 import org.powertac.common.CapacityTransaction;
@@ -34,23 +36,34 @@ import org.powertac.common.Order;
 import org.powertac.common.Orderbook;
 import org.powertac.common.Timeslot;
 import org.powertac.common.WeatherForecast;
+import org.powertac.common.WeatherForecastPrediction;
 import org.powertac.common.WeatherReport;
 import org.powertac.common.config.ConfigurableValue;
 import org.powertac.common.msg.BalanceReport;
+import org.powertac.common.msg.DistributionReport;
 import org.powertac.common.msg.MarketBootstrapData;
 import org.powertac.common.repo.TimeslotRepo;
+import org.powertac.samplebroker.assistingclasses.WeatherData;
+import org.powertac.samplebroker.assistingclasses.WeatherDataWithPeaks;
+import org.powertac.samplebroker.assistingclasses.WeatherDataWithUsage;
 import org.powertac.samplebroker.core.BrokerPropertiesService;
 import org.powertac.samplebroker.interfaces.Activatable;
 import org.powertac.samplebroker.interfaces.BrokerContext;
+import org.powertac.samplebroker.interfaces.ContextManager;
 import org.powertac.samplebroker.interfaces.Initializable;
 import org.powertac.samplebroker.interfaces.MarketManager;
 import org.powertac.samplebroker.interfaces.PortfolioManager;
+import org.powertac.samplebroker.utility.Node;
+import org.powertac.samplebroker.utility.ObjectToJson;
+import org.powertac.samplebroker.utility.EnergyPredictor;
+import org.powertac.samplebroker.utility.ExcelWriter;
+import org.powertac.samplebroker.utility.TeePrintStream;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /**
  * Handles market interactions on behalf of the broker.
- * @author John Collins
+ * @author John Collins, Stavros Orfanoudakis
  */
 @Service
 public class MarketManagerService 
@@ -69,24 +82,30 @@ implements MarketManager, Initializable, Activatable
   
   @Autowired
   private PortfolioManager portfolioManager;
+  
+  @Autowired
+  private ContextManager contextManager;
+  
+  private EnergyPredictor energyPredictor;
+  private ExcelWriter excelWriter;
 
   // ------------ Configurable parameters --------------
   // max and min offer prices. Max means "sure to trade"
   @ConfigurableValue(valueType = "Double",
           description = "Upper end (least negative) of bid price range")
-  private double buyLimitPriceMax = -1.0;  // broker pays
+  private double buyLimitPriceMax = Parameters.buyLimitPriceMax;  // broker pays
 
   @ConfigurableValue(valueType = "Double",
           description = "Lower end (most negative) of bid price range")
-  private double buyLimitPriceMin = -70.0;  // broker pays
+  private double buyLimitPriceMin = Parameters.buyLimitPriceMin;  // broker pays
 
   @ConfigurableValue(valueType = "Double",
           description = "Upper end (most positive) of ask price range")
-  private double sellLimitPriceMax = 70.0;    // other broker pays
+  private double sellLimitPriceMax = Parameters.sellLimitPriceMax;    // other broker pays
 
   @ConfigurableValue(valueType = "Double",
           description = "Lower end (least positive) of ask price range")
-  private double sellLimitPriceMin = 0.5;    // other broker pays
+  private double sellLimitPriceMin = Parameters.sellLimitPriceMin;    // other broker pays
 
   @ConfigurableValue(valueType = "Double",
           description = "Minimum bid/ask quantity in MWh")
@@ -95,7 +114,8 @@ implements MarketManager, Initializable, Activatable
   @ConfigurableValue(valueType = "Integer",
           description = "If set, seed the random generator")
   private Integer seedNumber = null;
-
+  
+  private static boolean WH_PRINT_ON = Parameters.WH_PRINT_ON;
   // ---------------- local state ------------------
   private Random randomGen; // to randomize bid/ask prices
 
@@ -104,12 +124,46 @@ implements MarketManager, Initializable, Activatable
   private double[] marketMWh;
   private double[] marketPrice;
   private double meanMarketPrice = 0.0;
+  
+  private double clearingPricesWe[] = new double[24];
+  private double clearingPricesWd[] = new double[24];
+  private int tradesPassedWe[] = new int[24];
+  private int tradesPassedWd[] = new int[24];
+  private int trainingTimer = 0;
+  private CapacityTransaction[] capacityFees = new CapacityTransaction[3];
+  
+  private double netUsagePredictorWe[] = new double[24];
+  private double netUsagePredictorWd[] = new double[24];
+  private double netUsageWe[] = new double[24];
+  private double netUsageWd[] = new double[24];
+  private int netUsageCounterWe[] = new int[24];
+  private int netUsageCounterWd[] = new int[24];
+  private double totalDistributionCosts = 0;
+  private double totalDistributionEnergy = 0;
+  private double totalBalancingCosts = 0;
+  private double totalBalancingEnergy = 0;
+  private double totalWholesaleCosts[] = new double[2];
+  private double totalWholesaleEnergy[] = new double[2];
+  
+//  private double totalPredictedEnergyKWH = 0;
+  private WeatherReport prevWeatherReport = null;
+  
+//  private ArrayList<>
+  
+  public Competition comp;
+  
+  public int numberOfBrokers = -1;
+  
+  private Instant startTime = null;
+  
+  private ArrayList<WeatherDataWithUsage> weatherDatas;
+  private ArrayList<WeatherDataWithPeaks> weatherDatasPeaks;
 
   public MarketManagerService ()
   {
     super();
   }
-
+  
   /* (non-Javadoc)
    * @see org.powertac.samplebroker.MarketManager#init(org.powertac.samplebroker.SampleBroker)
    */
@@ -128,6 +182,28 @@ implements MarketManager, Initializable, Activatable
     else {
       randomGen = new Random();
     }
+    
+    weatherDatas = new ArrayList<WeatherDataWithUsage>();
+    weatherDatasPeaks = new ArrayList<WeatherDataWithPeaks>();
+    
+    for(int i = 0 ; i<24 ; i++) {
+    	clearingPricesWe[i] = 30;
+    	clearingPricesWd[i] = 30;
+    	tradesPassedWe[i] = 1;
+    	tradesPassedWd[i] = 1;
+    	
+    	netUsageWe[i] = 40000;
+    	netUsageWd[i] = 30000;
+    	netUsageCounterWe[i] = 1;
+    	netUsageCounterWd[i] = 1;
+    }
+    
+    
+    energyPredictor = new EnergyPredictor();
+    energyPredictor.resetModels();
+    System.out.println("t");
+
+
   }
 
   // ----------------- data access -------------------
@@ -148,7 +224,38 @@ implements MarketManager, Initializable, Activatable
    */
   public synchronized void handleMessage (Competition comp)
   {
-    minMWh = Math.max(minMWh, comp.getMinimumOrderQuantity());
+	minMWh = Math.max(minMWh, comp.getMinimumOrderQuantity());
+    System.out.println("Competition name: "+ comp.getName());
+    System.out.print("Competitors: ");
+    for (String s : comp.getBrokers()) {
+		System.out.print(s+ " ");
+	}
+    System.out.println("");
+    System.out.println("Latitude: " + comp.getLatitude() + " Timezone Offset: " + comp.getTimezoneOffset());
+    this.comp = comp;
+    startTime = comp.getSimulationBaseTime();
+    
+    numberOfBrokers = comp.getBrokers().size() -1;
+    
+	try {			   
+    	String os = System.getProperty("os.name");
+    	if(os.equals("Windows 10")) {
+    		FileOutputStream file = new FileOutputStream("..\\logs\\" + comp.getName() + ".output.txt");
+    	    TeePrintStream tee = new TeePrintStream(file, System.out);
+    	    System.setOut(tee);
+    	}else {
+    		FileOutputStream file = new FileOutputStream("../logs/" + comp.getName() + ".output.txt");
+    	    TeePrintStream tee = new TeePrintStream(file, System.out);
+    	    System.setOut(tee);
+    	}
+
+	    excelWriter = new ExcelWriter(comp.getName());
+	    
+	} catch (FileNotFoundException e) {		
+		System.out.println("error writing to file");
+		e.printStackTrace();
+	}
+	
   }
 
   /**
@@ -156,7 +263,11 @@ implements MarketManager, Initializable, Activatable
    */
   public synchronized void handleMessage (BalancingTransaction tx)
   {
-    log.info("Balancing tx: " + tx.getCharge());
+//	  System.out.printf("--> Charge: % .2f E \t Energy: % .2f KWh\n",tx.getCharge(),tx.getKWh());
+	  totalBalancingEnergy += tx.getKWh();
+	  totalBalancingCosts += tx.getCharge();
+	  log.info("Balancing tx: " + tx.getCharge());
+	  portfolioManager.setBalancingCosts(tx.getCharge());
   }
 
   /**
@@ -165,6 +276,15 @@ implements MarketManager, Initializable, Activatable
    */
   public synchronized void handleMessage (ClearedTrade ct)
   {
+	  int ts = ct.getTimeslotIndex();
+	  
+	  if(getTimeSlotDay(ts)  <6) {
+		  clearingPricesWd[getTimeSlotHour(ts)] += ct.getExecutionPrice();
+		  tradesPassedWd[getTimeSlotHour(ts)] ++;
+	  }else {
+		  clearingPricesWe[getTimeSlotHour(ts)] += ct.getExecutionPrice();
+		  tradesPassedWe[getTimeSlotHour(ts)] ++;
+	  }
   }
 
   /**
@@ -172,7 +292,9 @@ implements MarketManager, Initializable, Activatable
    */
   public synchronized void handleMessage (DistributionTransaction dt)
   {
-    log.info("Distribution tx: " + dt.getCharge());
+	  totalDistributionEnergy += dt.getKWh();
+	  totalDistributionCosts += dt.getCharge();
+	  log.info("Distribution tx: " + dt.getCharge());
   }
 
   /**
@@ -181,6 +303,21 @@ implements MarketManager, Initializable, Activatable
    */
   public synchronized void handleMessage (CapacityTransaction dt)
   {
+	for (int j = 0; j < capacityFees.length; j++) {
+		if(capacityFees[j] == null) {
+			capacityFees[j] = dt;
+			break;
+		}
+	}
+
+	System.out.println("======================================================================================="
+			+ "========================================================");
+//	System.out.println("ts: " + dt.getPeakTimeslot() + "  " + dt.getBroker().getUsername()
+//			+ "  " + dt.getKWh() + "  " + dt.getThreshold() + "  " + dt.getCharge() );
+	System.out.printf("CapacityTransaction| peak ts:%5d Energy: %8.2f KWh ThreshHold: %8.2f  Costs: %10.2f €\n", 
+						dt.getPeakTimeslot(),dt.getKWh(),dt.getThreshold(), dt.getCharge());
+	System.out.println("======================================================================================="
+			+ "========================================================");
     log.info("Capacity tx: " + dt.getCharge());
   }
 
@@ -214,7 +351,7 @@ implements MarketManager, Initializable, Activatable
       }
     }
     meanMarketPrice = totalValue / totalUsage;
-    System.out.println("Calculated bootstrap data");
+//    System.out.println("Calculated bootstrap data");
   }
 
   /**
@@ -232,12 +369,21 @@ implements MarketManager, Initializable, Activatable
    */
   public synchronized void handleMessage (MarketTransaction tx)
   {
-    // reset price escalation when a trade fully clears.
-    Order lastTry = lastOrder.get(tx.getTimeslotIndex());
-    if (lastTry == null) // should not happen
-      log.error("order corresponding to market tx " + tx + " is null");
-    else if (tx.getMWh() == lastTry.getMWh()) // fully cleared
-      lastOrder.put(tx.getTimeslotIndex(), null);
+//	  System.out.println(tx.getTimeslotIndex());
+	  if(tx.getPrice() > 0) {
+		  totalWholesaleCosts[1] += tx.getPrice();
+		  totalWholesaleEnergy[1] += tx.getMWh()*1000;
+	  }else{
+		  totalWholesaleCosts[0] += tx.getPrice();
+		  totalWholesaleEnergy[0] += tx.getMWh()*1000;
+	  }
+		  
+	  // reset price escalation when a trade fully clears.
+	  Order lastTry = lastOrder.get(tx.getTimeslotIndex());
+	  if (lastTry == null) // should not happen
+		  log.error("order corresponding to market tx " + tx + " is null");
+	  else if (tx.getMWh() == lastTry.getMWh()) // fully cleared
+		  lastOrder.put(tx.getTimeslotIndex(), null);
   }
   
   /**
@@ -254,6 +400,59 @@ implements MarketManager, Initializable, Activatable
    */
   public synchronized void handleMessage (WeatherForecast forecast)
   {
+	  int hour,day,counter = 0;	  
+	  int ts = forecast.getTimeslotIndex();
+	  double results[] = new double[24];
+	  for(int i = 0; i < 24; i++) {
+      	results[i] = -1;
+      }
+	  
+	  ArrayList<WeatherData> weatherlist = new ArrayList<WeatherData>();
+	  
+	  for(WeatherForecastPrediction f : forecast.getPredictions()) {
+		  
+		  hour = getTimeSlotHour(ts + f.getForecastTime());
+		  day = getTimeSlotDay(ts + f.getForecastTime());
+		  
+		  weatherlist.add(new WeatherData(day, hour, ts+f.getForecastTime(), f.getTemperature(), f.getWindSpeed(), f.getWindDirection(), f.getCloudCover()));
+	  }
+	  ObjectToJson.toJSON(forecast);
+	  ObjectToJson.toJSONForecast(weatherlist);
+	  
+	  hour = getTimeSlotHour(ts);
+	  day = getTimeSlotDay(ts);
+
+      if(ts > 370 && trainingTimer == 0) {
+          results = energyPredictor.predict();
+//          if(results[0] == 0) {
+//        	  if(energyPredictor.getFailure_counter() < EnergyPredictor.getALLOWED_TIMEOUTS()) {
+//        		  System.out.println("FAIL in prediction");
+//        	  }                  
+//                  results = rndPredictor();
+//          }
+      }
+	  
+	  for(WeatherForecastPrediction f : forecast.getPredictions()) {
+		  
+		  hour = getTimeSlotHour(ts + f.getForecastTime());
+		  day = getTimeSlotDay(ts + f.getForecastTime());
+		  
+//		  int tempValue = 0;
+//		  if( results[counter] > portfolioManager.getCurrentThreshold() + Parameters.THRESHOLD_OFFSET) {
+//			  tempValue = 1;
+//		  }
+//		  excelWriter.writeCell(forecast.getTimeslotIndex() + f.getForecastTime() - 360 , f.getForecastTime() + 2 + 28, results[counter],false);
+//		  
+		  excelWriter.writeCell(forecast.getTimeslotIndex() + f.getForecastTime() - 360 , f.getForecastTime() + 2, results[counter],false);
+		  		  
+		  if(day < 6) {
+			  netUsagePredictorWd[hour] = (1 + results[counter]) * 1000;
+			  
+		  }else {
+			  netUsagePredictorWe[hour] = (1 + results[counter]) * 1000;
+		  }
+		  counter++;
+	  }
   }
 
   /**
@@ -261,6 +460,84 @@ implements MarketManager, Initializable, Activatable
    */
   public synchronized void handleMessage (WeatherReport report)
   {
+	  int hour = getTimeSlotHour( report.getTimeslotIndex());
+	  int day = getTimeSlotDay( report.getTimeslotIndex());	  
+	  
+//	  WeatherData w = new WeatherData(day, hour,report.getTimeslotIndex(), report.getTemperature(), report.getWindSpeed(),
+//			  									report.getWindDirection(), report.getCloudCover());
+//	  
+	  WeatherDataWithUsage ww = new WeatherDataWithUsage(day, hour,report.getTimeslotIndex(), report.getTemperature(), report.getWindSpeed(),
+														report.getWindDirection(), report.getCloudCover(),0);
+	  
+	  boolean t = false;
+	  WeatherDataWithPeaks www = new WeatherDataWithPeaks(day, hour,report.getTimeslotIndex(), report.getTemperature(),
+			  						report.getWindSpeed(),report.getWindDirection(), report.getCloudCover(),0,t);	  
+	  
+	  if(report.getTimeslotIndex() < 360) {
+		  weatherDatas.add(ww);
+		  weatherDatasPeaks.add(www);
+	  }	  
+	  
+	  if(report.getTimeslotIndex()< 360) {
+		  prevWeatherReport = report;
+		  return;
+	  }
+	  int temp = prevWeatherReport.getTimeslotIndex();
+//	  System.out.println("Weather| ts: " + temp +" " + prevWeatherReport.getCloudCover() );
+//	  DistributionReport d = contextManager.getReport();
+//	  System.out.println("Actual Demand Ts: " + temp + "\t" + contextManager.getUsage(temp) + " KWh");
+	  
+	  hour = getTimeSlotHour( prevWeatherReport.getTimeslotIndex());
+	  day = getTimeSlotDay( prevWeatherReport.getTimeslotIndex());	  
+	  
+	  ww = new WeatherDataWithUsage(day, hour,prevWeatherReport.getTimeslotIndex(), prevWeatherReport.getTemperature(),
+			   prevWeatherReport.getWindSpeed(),prevWeatherReport.getWindDirection(), prevWeatherReport.getCloudCover(),
+			   contextManager.getUsage(temp)/1000);
+	  
+	  
+	  ObjectToJson.toJSONFitUsage(ww);
+	  
+	  
+//	  System.out.println("Temp: " + contextManager.getUsage(temp) + " Threshold: " + portfolioManager.getCurrentThreshold() + 5000);
+	  if(portfolioManager.getCurrentThreshold() + Parameters.THRESHOLD_OFFSET < contextManager.getUsage(temp)) {		  
+		  t = true;
+	  }
+	  
+	  www = new WeatherDataWithPeaks(day, hour,prevWeatherReport.getTimeslotIndex(), prevWeatherReport.getTemperature(),
+			   prevWeatherReport.getWindSpeed(),prevWeatherReport.getWindDirection(), prevWeatherReport.getCloudCover()
+			   ,contextManager.getUsage(temp)/1000,t);	  
+	  
+	  if(report.getTimeslotIndex() > 371) {
+		  ObjectToJson.toJSONPeaks(www);
+		  //TODO call PEAKS from predictor
+	  }
+	  
+	  if(contextManager.getUsage(temp) == 0 && report.getTimeslotIndex() > 371 ) {
+		  System.out.println("Error in fitUsage creation");
+	  }else if(report.getTimeslotIndex() > 371 && trainingTimer == 0){
+		  energyPredictor.fitData();
+	  }
+	  
+//	  portfolioManager.setBatchWeather(w);
+	  
+	  if((report.getTimeslotIndex() - 360) % 25 == 0 )
+		  excelWriter.writeCell(0,0,0,true);
+
+	  DistributionReport dr = contextManager.getReport();
+
+	  excelWriter.writeCell(dr.getTimeslot()-360,0,dr.getTimeslot(),false);
+	  excelWriter.writeCell(dr.getTimeslot()-360,1,dr.getTotalConsumption()-dr.getTotalProduction(),false);
+
+	  excelWriter.writeCell(dr.getTimeslot()-360,28,dr.getTotalConsumption(),false);
+	  
+	  int tempValue = 0;
+	  if(dr.getTotalConsumption()-dr.getTotalProduction() > portfolioManager.getCurrentThreshold() + Parameters.THRESHOLD_OFFSET) {
+		  tempValue = 1;
+	  }
+	  excelWriter.writeCell(dr.getTimeslot()-360,30,tempValue,false);
+	 
+	  
+	  prevWeatherReport = report;
   }
 
   /**
@@ -269,6 +546,10 @@ implements MarketManager, Initializable, Activatable
    */
   public synchronized void handleMessage (BalanceReport report)
   {
+//	  System.out.printf("--> Imbalance:  %10.2f KWh\n" ,report.getNetImbalance());
+//	  System.out.printf("--> Imbalance: ts: %d  %10.2f M.P. %10.2f  \t Diff: % .2f\n" ,report.getTimeslotIndex(),report.getNetImbalance() 
+//			  	,broker.getBroker().findMarketPositionByTimeslot(report.getTimeslotIndex()).getOverallBalance()*1000,
+//			  	report.getNetImbalance()-broker.getBroker().findMarketPositionByTimeslot(report.getTimeslotIndex()).getOverallBalance()*1000); 
   }
 
   // ----------- per-timeslot activation ---------------
@@ -282,9 +563,20 @@ implements MarketManager, Initializable, Activatable
   @Override
   public synchronized void activate (int timeslotIndex)
   {
-    double neededKWh = 0.0;
-    log.debug("Current timeslot is " + timeslotRepo.currentTimeslot().getSerialNumber());
-    System.out.println("=========== \n Current timeslot is " + timeslotRepo.currentTimeslot().getSerialNumber());
+	updateUsage(portfolioManager.collectUsage(timeslotIndex), timeslotIndex); 
+	double neededKWh = 0.0;
+	
+	  if((timeslotIndex-360) % 168 == 0 && timeslotIndex != 360) {
+		  //TODO call retrain
+		  System.out.println("Re-train!!!!!");
+		  energyPredictor.retraintData((int) Math.round(portfolioManager.getCurrentThreshold()));
+		  trainingTimer = 10;
+		  
+	  }
+	
+    log.debug(" Current timeslot is " + timeslotIndex);
+    System.out.println("\n|------------------------------------|  Current timeslot is " + timeslotIndex 
+    			+" |  Day: "+ getTimeSlotDay(timeslotIndex) + "  Hour: " + getTimeSlotHour(timeslotIndex));
     for (Timeslot timeslot : timeslotRepo.enabledTimeslots()) {
       printAboutTimeslot(timeslot);
 //      System.out.println("usage record lentgh: " + broker.getUsageRecordLength());
@@ -292,13 +584,19 @@ implements MarketManager, Initializable, Activatable
 //      System.out.print("  Index: "+ index);
       neededKWh = portfolioManager.collectUsage(index);
 //      System.out.print(" needed KWH: "+ neededKWh);
-      submitBidMCTS(neededKWh,timeslotRepo.currentTimeslot().getSerialNumber(), timeslot.getSerialNumber());
+      submitBidMCTS(neededKWh,timeslotIndex, timeslot.getSerialNumber());
  
     }
     
+	  trainingTimer --;
+	  if(trainingTimer < 0) {
+		  trainingTimer = 0;
+	  }
+    
   }
   void printAboutTimeslot(Timeslot t) {
-	  System.out.print("Timeslot serial: "+ t.getSerialNumber());
+	  if(WH_PRINT_ON)
+		  System.out.print("Timeslot serial: "+ t.getSerialNumber());
 //	  System.out.println("time of day"+ t.slotInDay());
 //	  System.out.println("day of week"+ t.dayOfWeek());
 //	  System.out.println("stat time"+ t.getStartTime());
@@ -330,29 +628,39 @@ implements MarketManager, Initializable, Activatable
     double neededMWh = neededKWh / 1000.0;
     //find how many MWH are already available in given timeslot
     MarketPosition posn = broker.getBroker().findMarketPositionByTimeslot(timeslotBidding);
-    
+    double offset = portfolioManager.getParams().MarketManagerOffset;
     
     if (posn != null)
       neededMWh -= posn.getOverallBalance();
     if (Math.abs(neededMWh) <= minMWh) {
       log.info("no power required in timeslot " + timeslotBidding);
-      System.out.println(" ");
+      if(WH_PRINT_ON)
+    	  System.out.println(" ");
       return;
     }
-    System.out.print("  neededMWH: " + neededMWh);
+    if(WH_PRINT_ON)
+    	System.out.print("  neededMWH: " + neededMWh);
     //System.out.print("  "+ posn.toString());
     
     Double limitPrice = computeLimitPrice(timeslotBidding, neededMWh);
     //==========================================================================================	
     
-    //TODO check if needed is negative or positive
+    if(neededMWh < 0) {
+        log.info("new order for " + neededMWh + " at " + limitPrice + " in timeslot " + timeslotBidding);
+        Order order = new Order(broker.getBroker(), timeslotBidding, neededMWh, limitPrice + offset );
+        
+        lastOrder.put(timeslotBidding, order);
+        broker.sendMessage(order);
+        return;
+    }
+    
     double neededMWHTemp ;
     int timeslotBiddingTemp;
     Node curNode;
     ArrayList<Node> visitedNodes;
     double Csim; // Total simulated cost of auctions done
-    double Cbal = 0; // Estimated Balancing cost
-    double CbalUnitPrice = - 2* Math.abs(buyLimitPriceMin)/2; // May need to reevaluate this!!!!!!!!!!!!!!!!TODO  
+//    double Cbal = 0; // Estimated Balancing cost
+    double CbalUnitPrice = - 2* Math.abs(Parameters.buyLimitPriceMin)/2; // May need to reevaluate this!!!!!!!!!!!!!!!!TODO  
     double CavgUnit = 0; // Average Unit Cost 
     
     //Initialize 
@@ -430,7 +738,7 @@ implements MarketManager, Initializable, Activatable
 	    			//get a simulated clearing Price
 	    			double limitPriceMCTS = computeLimitPrice(timeslotBidding + curNode.hoursAhead,neededMWHTemp);
 	    			double clearingPrice = randomGen.nextGaussian()* OBSERVED_DEVIATION + limitPriceMCTS; 
-	    			// TODO swap compute limit price with price predictor value
+	    			// TODO swap compute limit price with price  value
 	    			if(limitPriceMCTS > clearingPrice) {
 	    				Csim += neededMWHTemp * clearingPrice;
 	    				neededMWHTemp = 0;
@@ -471,15 +779,16 @@ implements MarketManager, Initializable, Activatable
     if(bestActionNode == null) {
     	bestActionNode = new Node(limitPrice, null, -1, -1);
     }
-
-//    if(timeslotBidding-currentTimeslot == 4) {
+//
+//    if(timeslotBidding-currentTimeslot == 21) {
 //    	
 //    	printTree(root);
 //    }
     
     //if NO_BID was chosen return
     if(bestActionNode.actionID == NO_BID) {
-    	System.out.println(" ");
+    	if(WH_PRINT_ON)
+    		System.out.println(" ");
     	return;
     }
     
@@ -496,18 +805,20 @@ implements MarketManager, Initializable, Activatable
     	bestActionNode.actionID = - bestActionNode.actionID;
     }
     
-    System.out.println("  ------ mcts bid: " + bestActionNode.actionID + "  w/out: " + limitPrice);
+    if(WH_PRINT_ON)
+    	System.out.println("  ------ mcts bid: " + bestActionNode.actionID + "  base: " + limitPrice);
     Order order;
     // ==========================================================================================	
     log.info("new order for " + neededMWh + " at " + limitPrice + " in timeslot " + timeslotBidding);
 //    Order order = new Order(broker.getBroker(), timeslotBidding, neededMWh, limitPrice);
-    order = new Order(broker.getBroker(), timeslotBidding, neededMWh, bestActionNode.actionID);
+    order = new Order(broker.getBroker(), timeslotBidding, neededMWh, bestActionNode.actionID - offset);
  
     lastOrder.put(timeslotBidding, order);
     broker.sendMessage(order);
   }
   
-  private void printTree(Node n) {
+  @SuppressWarnings("unused")
+private void printTree(Node n) {
 	  if(n == null || n.children.isEmpty())
 		  return;
 	  if(n.parent == null) {
@@ -560,11 +871,11 @@ implements MarketManager, Initializable, Activatable
     // set price between oldLimitPrice and maxPrice, according to number of
     // remaining chances we have to get what we need.
     double newLimitPrice = minPrice; // default value
-    int current = timeslotRepo.currentSerialNumber();
+    int current = timeslot;
     int remainingTries = (timeslot - current
                           - Competition.currentCompetition().getDeactivateTimeslotsAhead());
     log.debug("remainingTries: " + remainingTries);
-    if (remainingTries > 0) {
+    if (remainingTries > 0) { ////!
       double range = (minPrice - oldLimitPrice) * 2.0 / (double)remainingTries;
       log.debug("oldLimitPrice=" + oldLimitPrice + ", range=" + range);
       double computedPrice = oldLimitPrice + randomGen.nextDouble() * range; 
@@ -575,4 +886,201 @@ implements MarketManager, Initializable, Activatable
     	return 0.0;
       //return null; // market order
   }
+  
+  public int getCompetitors() {
+	  return numberOfBrokers;
+  }
+  
+  /**
+   * Start time of a sim session in the sim world. This is actually the start
+   * of the bootstrap session, which is typically 15 days before the start of
+   * a normal sim session.
+   */
+//  public Instant getSimulationBaseTime ()
+//  {
+//    return simulationBaseTime;
+//  }
+  
+  public int getTimeSlotDay(int t) {
+
+	 int day =  startTime.get(DateTimeFieldType.dayOfWeek()); 
+	 
+	  return (day + t/24) % 7 + 1;
+  }
+  
+  public int getTimeSlotHour(int t) {
+	  
+	  int hour =  startTime.get(DateTimeFieldType.hourOfDay());
+
+	  return( t+hour ) % 24;
+  }
+  
+  public double getAvgClearedPrice(int timeslot) {
+	  
+	  int day = getTimeSlotDay(timeslot);
+	  int hour = getTimeSlotHour(timeslot);
+	  
+	  if(day < 6) {
+		  return clearingPricesWd[hour]/tradesPassedWd[hour];
+	  }else {
+		  return clearingPricesWe[hour]/tradesPassedWe[hour];
+	  }
+	  
+  }
+  
+  public double[] getAvgClearingPriceWe() {
+	  double t[] = new double[24];
+	  
+	  for (int i = 0; i < t.length; i++) {
+		t[i] = clearingPricesWe[i]/tradesPassedWe[i];
+	}
+ 	  return t;
+  }
+  
+  public double[] getAvgClearingPriceWd() {
+	  double t[] = new double[24];
+	  
+	  for (int i = 0; i < t.length; i++) {
+		t[i] = clearingPricesWd[i]/tradesPassedWd[i];
+	}
+ 	  return t;
+  }
+  
+  private void updateUsage(double usageKWH,int timeslot) {
+	  
+	  if(getTimeSlotDay(timeslot)  <6) {
+		  netUsageWd[getTimeSlotHour(timeslot)] += usageKWH;
+		  netUsageCounterWd[getTimeSlotHour(timeslot)] ++;
+	  }else {
+		  netUsageWe[getTimeSlotHour(timeslot)] += usageKWH;
+		  netUsageCounterWe[getTimeSlotHour(timeslot)] ++;
+	  }
+  }
+  
+  public double[] getAvgNetusageWe() {
+	  double t[] = new double[24];
+	  
+	  for (int i = 0; i < t.length; i++) {
+		t[i] = netUsageWe[i]/netUsageCounterWe[i];
+	}
+ 	  return t;
+  }
+  
+  public double[] getAvgNetusageWd() {
+	  double t[] = new double[24];
+	  
+	  for (int i = 0; i < t.length; i++) {
+		t[i] = netUsageWd[i]/netUsageCounterWd[i];
+	}
+ 	  return t;
+  }
+  
+  public double getDistributionCosts() {
+	return totalDistributionCosts;  
+  }
+  public void setDistributionCosts(double v) {
+	  totalDistributionCosts = v;
+  }
+  public double getBalancingCosts() {
+	  return totalBalancingCosts;
+  }
+  public void setBalancingCosts(double v) {
+	  totalBalancingCosts = v;
+  }
+  
+  public double[] getWholesaleCosts() {
+	  return totalWholesaleCosts;
+  }
+  public void setWholesaleCosts(double v) {
+	  totalWholesaleCosts[0] = v;
+	  totalWholesaleCosts[1] = v;
+  }
+  
+  public double[] getWholesaleEnergy() {
+	  return totalWholesaleEnergy;
+  }
+  public void setWholesaleEnergy(double v) {
+	  totalWholesaleEnergy[0] = v;
+	  totalWholesaleEnergy[1] = v;
+  }
+
+  public Competition getComp() {
+	  return comp;
+  }
+
+  public double getTotalDistributionEnergy() {
+	return totalDistributionEnergy;
+  }
+
+  public void setTotalDistributionEnergy(double totalDistributionEnergy) {
+	this.totalDistributionEnergy = totalDistributionEnergy;
+  }
+
+  public void setComp(Competition comp) {
+	  this.comp = comp;
+  }
+
+public double getTotalBalancingEnergy() {
+	return totalBalancingEnergy;
+}
+
+public void setTotalBalancingEnergy(double totalBalancingEnergy) {
+	this.totalBalancingEnergy = totalBalancingEnergy;
+}
+
+public double[] getNetUsagePredictorWe() {
+	return netUsagePredictorWe;
+}
+
+public double[] getNetUsagePredictorWd() {
+	return netUsagePredictorWd;
+}
+
+public CapacityTransaction[] getCapacityFees() {
+	return capacityFees;
+}
+
+public void resetCapacityFees() {
+	for (int i = 0; i < 3; i++) {
+		capacityFees[i] = null;
+	}
+}
+
+public void generateWeatherBootJSON() {
+	ObjectToJson.toJSONWeather(weatherDatas);
+	ObjectToJson.toJSONPeak(weatherDatasPeaks);
+	System.out.println("--");
+}
+
+public void setUsageInBoot(double[] usage,double threshold) {
+	for(WeatherDataWithUsage w : weatherDatas) {
+		w.setNetUsageMWh(-usage[w.getTimeslot()-24]/1000);
+	}
+	System.out.println("Threshold from Boot: " + threshold);
+	boolean t = false;
+	for(WeatherDataWithPeaks w : weatherDatasPeaks) {		
+//		System.out.println("Timeslot: " +w.getTimeslot() + "  Threshold:" + threshold + "  Demand: " + Math.abs(usage[w.getTimeslot()-24]));
+		t = false;
+		if(Math.abs(usage[w.getTimeslot()-24]) > (threshold + Parameters.THRESHOLD_OFFSET)) {
+			t = true;
+		}
+		w.setPeak(t);
+		w.setNetUsageMWh(-usage[w.getTimeslot()-24]/1000);
+	}
+}
+
+private double[] rndPredictor() {
+	double result[] = new double[24];
+	
+	for(int i = 0; i < 24 ; i++) {
+		result[i] = randomGen.nextDouble()*25000 + 30000;
+	}
+	return result;
+}
+
+public void trainpredictor() {
+    energyPredictor.trainBootData();
+}
+  
+  
 }
