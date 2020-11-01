@@ -68,7 +68,7 @@ public class EnergyPredictor {
                        
                         try {
                                 clientSocket = new Socket("localhost", 8098);
-                                clientSocket.setSoTimeout(1500000);
+                                clientSocket.setSoTimeout(1500);
                             out = new PrintWriter(clientSocket.getOutputStream(), true);
                             in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
                             System.out.println("sending");

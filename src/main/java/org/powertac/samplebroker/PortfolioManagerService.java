@@ -124,6 +124,7 @@ implements PortfolioManager, Initializable, Activatable
   private int consumptionCustomersTotal = 0;
   private int windCustomersTotal = 0;
   private int solarCustomersTotal = 0;
+  private int thermalCustomersTotal = 0;
 
   private int interruptibleCustomersPrev = 0;
 
@@ -171,6 +172,12 @@ implements PortfolioManager, Initializable, Activatable
   private double currentThreshold = 0;
   
   private double totalEnergyused = 0;
+  
+  private boolean thermal_Passed = false;
+  private boolean solar_Passed = false;
+  private boolean wind_Passed = false;
+  
+  private boolean secondaryTariffEn = false;
   
   private ArrayList<CustomerUsage> subscriptionList ;
   private ArrayList<Customer> customerList ;
@@ -647,8 +654,12 @@ private ApplicationContext ctx;
 			  marketManager.trainpredictor();
 			  // call the initial predictor trainer
 		  }
-		  
 
+		  //Reevaluate Power and thermal tariffs
+		  if((timeslotIndex-360 + 70) % 168 == 0) { // && timeslotIndex != 458) {
+			  secondaryTariffEn = true;
+			  System.out.println("\n\n\nMIDDLE-evaluation!!!!!\n\n\n");			 		 
+		  }
 		  
 		  //call total demand predictor 
 		  //call our subscription demand predictor
@@ -729,23 +740,23 @@ private ApplicationContext ctx;
 				revokeConsumptionTariff(spec);
 			}
 			
-			if(spec.getPowerType().isProduction()) {
-				revokeProductionTariff(spec);
-			}
+//			if(spec.getPowerType().isProduction()) {
+//				revokeProductionTariff(spec);
+//			}
 			
 			if(spec.getPowerType().isStorage() && enableStorage && enableGStorage){  				
-				tempTariff = mutateStorageTariff(tempTariff);   				
-	  			tariffCharges.remove(spec);
-	  			
-	  			tempTariff.addSupersedes(spec.getId());
-	  	        tariffRepo.addSpecification(tempTariff);
-	  	        tariffCharges.put(tempTariff,0d);
-	  	        tariffCustomerCount.put(tempTariff,0);
-	  	        brokerContext.sendMessage(tempTariff);
-	  	        
-	  	        TariffRevoke revoke = new TariffRevoke(brokerContext.getBroker(), spec);
-	  	        brokerContext.sendMessage(revoke);
-	  	        
+//				tempTariff = mutateStorageTariff(tempTariff);   				
+//	  			tariffCharges.remove(spec);
+//	  			
+//	  			tempTariff.addSupersedes(spec.getId());
+//	  	        tariffRepo.addSpecification(tempTariff);
+//	  	        tariffCharges.put(tempTariff,0d);
+//	  	        tariffCustomerCount.put(tempTariff,0);
+//	  	        brokerContext.sendMessage(tempTariff);
+//	  	        
+//	  	        TariffRevoke revoke = new TariffRevoke(brokerContext.getBroker(), spec);
+//	  	        brokerContext.sendMessage(revoke);
+//	  	        
 			} else if (spec.getPowerType() == PowerType.INTERRUPTIBLE_CONSUMPTION && enableInterruptible && enableGInterruptible) {
 				tempTariff = mutateInterruptibleConsTariff(tempTariff);
 				tariffCharges.remove(spec);
@@ -767,7 +778,19 @@ private ApplicationContext ctx;
 		System.out.println("-- Total Wind  Consumers: \t" + windCustomersTotal + " / " + windCustomers + " ");
 		System.out.println("-- Total Cons  Consumers: \t" + consumptionCustomersTotal + " / " + consumptionCustomers + " \n");
 		
-		consumptionTariffStrategy();    
+		consumptionTariffStrategy();  
+				
+		if(marketManager.getCompetitors() < 7) {
+			setSecondaryTariffsEnablers();
+		}
+		
+		if(secondaryTariffEn && marketManager.getCompetitors() < 7) {
+			System.out.println("Solar: " + solar_Passed );
+			System.out.println("Wind: " + wind_Passed );
+			System.out.println("Thermal: " + thermal_Passed );
+			secondaryTariffStrategy();
+		}
+		
 //		System.out.print("=======================================");
 //		System.out.println("-- Total Wind Consumers: \t" + windCustomersTotal + " / " + windCustomers + " \n");
 //		tempTariff = findMyBestTariff(PowerType.WIND_PRODUCTION);
@@ -799,7 +822,91 @@ private ApplicationContext ctx;
 		
 		resetGlobalCounters();
   }
+  	
+  private void secondaryTariffStrategy() {
+	  TariffSpecification tempTariff;
+	  
+	  if(!thermal_Passed) {
+		  tempTariff = findMyBestTariff(PowerType.THERMAL_STORAGE_CONSUMPTION);
+	
+		  tempTariff = mutateStorageTariff(tempTariff,false,true);   				
+			if(tempTariff != null) {
+				tariffRepo.addSpecification(tempTariff);
+				tariffCharges.put(tempTariff,0d);
+				tariffCustomerCount.put(tempTariff,0);
+	        	brokerContext.sendMessage(tempTariff);	
+			}			
+	  }
+	  
+	  if(!solar_Passed) {
+		  //publish new better solar tariff
+		  tempTariff = findMyBestProdTariff(PowerType.SOLAR_PRODUCTION);
+		  System.out.print("best Solar tariff");
+		  printTariff(tempTariff);
+		  tempTariff = mutateProductionTariff(tempTariff,false,true);
+		  
+		  if(tempTariff != null) {
+			  tariffRepo.addSpecification(tempTariff);
+			  tariffCharges.put(tempTariff,0d);
+			  tariffCustomerCount.put(tempTariff,0);
+			  brokerContext.sendMessage(tempTariff);	
+		  }	
+		  
+	  }else if(calculatePercentage(solarCustomers, solarCustomersTotal) > 75) {
+		  //revoke cheapest energy tariff 
+		  tempTariff = findMyBestProdTariff(PowerType.SOLAR_PRODUCTION);
+		  if(remainingActiveTariff(PowerType.SOLAR_PRODUCTION) > 1) {
+				tariffCharges.remove(tempTariff);
+				tariffCustomerCount.remove(tempTariff);
+		        TariffRevoke revoke = new TariffRevoke(brokerContext.getBroker(), tempTariff);
+		        brokerContext.sendMessage(revoke);
+		  }
+		  
+	  }
+	  
+	  if(!wind_Passed) {
+		  //publish new better wind tariff
+		  tempTariff = findMyBestProdTariff(PowerType.WIND_PRODUCTION);
+		  System.out.print("best Wind tariff");
+		  printTariff(tempTariff);
+		  tempTariff = mutateProductionTariff(tempTariff,false,true);
+		  
+		  if(tempTariff != null) {
+			  tariffRepo.addSpecification(tempTariff);
+			  tariffCharges.put(tempTariff,0d);
+			  tariffCustomerCount.put(tempTariff,0);
+			  brokerContext.sendMessage(tempTariff);	
+		  }			  
+	  }else if(calculatePercentage(windCustomers, windCustomersTotal) > 75) {
+		  //revoke cheapest energy tariff 
+		  tempTariff = findMyBestProdTariff(PowerType.WIND_PRODUCTION);
+		  if(remainingActiveTariff(PowerType.WIND_PRODUCTION) > 1) {
+				tariffCharges.remove(tempTariff);
+				tariffCustomerCount.remove(tempTariff);
+		        TariffRevoke revoke = new TariffRevoke(brokerContext.getBroker(), tempTariff);
+		        brokerContext.sendMessage(revoke);
+		  }
+	  }
+	  
+	  secondaryTariffEn = false;
+	  thermal_Passed = false;
+	  solar_Passed = false;
+	  wind_Passed = false;
+  }
   
+  private void setSecondaryTariffsEnablers() {
+	  
+	  if(calculatePercentage(solarCustomers, solarCustomersTotal) > 50) {
+		  solar_Passed = true;
+	  }
+	  if(calculatePercentage(windCustomers, windCustomersTotal) > 30) {
+		  wind_Passed = true;
+	  }
+	  if(calculatePercentage(tHCCustomers, thermalCustomersTotal) > 40) {
+		  thermal_Passed = true;
+	  }
+  }
+    
   private void removeCustomer(TariffTransaction ttx) {
 	  CustomerUsage temp = null;
 	  for(CustomerUsage c : subscriptionList) {
@@ -862,6 +969,7 @@ private ApplicationContext ctx;
 		marketManager.setWholesaleCosts(0);
 		consumptionCustomersTotal = 0;
 		solarCustomersTotal = 0;
+		thermalCustomersTotal = 0;
 		windCustomersTotal = 0;
 		totalProfits = 0;
 		
@@ -873,43 +981,43 @@ private ApplicationContext ctx;
 		}
   }
   
-  private void revokeProductionTariff(TariffSpecification spec) {	
-  		TariffSpecification m = findBestCompProductionTariff(spec.getPowerType()); 
-		double enemyBestRate = calculateAvgProdRate(m,calculateAvgRate(m, false));  
-		double myRate = calculateAvgProdRate(spec,calculateAvgRate(spec, false));     				
-		int activeTariffs = remainingActiveTariff(spec.getPowerType());
-		
-		if ( params.productionTariffsEnabled == 0) {
-			System.out.println("Revoked");
-	        
-			tariffCharges.remove(spec);
-			tariffCustomerCount.remove(spec);
-	        TariffRevoke revoke = new TariffRevoke(brokerContext.getBroker(), spec);
-	        brokerContext.sendMessage(revoke);
-	        return;
-		}
-		
-		if((myRate - enemyBestRate) > 0.02  && activeTariffs != 1) {
-			System.out.println("Revoked");
-	        
-			tariffCharges.remove(spec);
-			tariffCustomerCount.remove(spec);
-	        TariffRevoke revoke = new TariffRevoke(brokerContext.getBroker(), spec);
-	        brokerContext.sendMessage(revoke);
-	        
-	        //check that there is always a better tariff available
-			TariffSpecification tempTariff = mutateProductionTariff(spec,false,0,false);  				
-			        				
-			if(!checkIfAlreadyExists(tempTariff)) {        					                			                	
-				tariffRepo.addSpecification(tempTariff);
-				tariffCharges.put(tempTariff,0d);
-				tariffCustomerCount.put(tempTariff,0);
-				brokerContext.sendMessage(tempTariff);
-			}else {
-				System.out.println("Not publishing");
-			}            	        
-		}
-  }
+//  private void revokeProductionTariff(TariffSpecification spec) {	
+//  		TariffSpecification m = findBestCompProductionTariff(spec.getPowerType()); 
+//		double enemyBestRate = calculateAvgProdRate(m,calculateAvgRate(m, false));  
+//		double myRate = calculateAvgProdRate(spec,calculateAvgRate(spec, false));     				
+//		int activeTariffs = remainingActiveTariff(spec.getPowerType());
+//		
+//		if ( params.productionTariffsEnabled == 0) {
+//			System.out.println("Revoked");
+//	        
+//			tariffCharges.remove(spec);
+//			tariffCustomerCount.remove(spec);
+//	        TariffRevoke revoke = new TariffRevoke(brokerContext.getBroker(), spec);
+//	        brokerContext.sendMessage(revoke);
+//	        return;
+//		}
+//		
+//		if((myRate - enemyBestRate) > 0.02  && activeTariffs != 1) {
+//			System.out.println("Revoked");
+//	        
+//			tariffCharges.remove(spec);
+//			tariffCustomerCount.remove(spec);
+//	        TariffRevoke revoke = new TariffRevoke(brokerContext.getBroker(), spec);
+//	        brokerContext.sendMessage(revoke);
+//	        
+//	        //check that there is always a better tariff available
+//			TariffSpecification tempTariff = mutateProductionTariff(spec,false,0,false);  				
+//			        				
+//			if(!checkIfAlreadyExists(tempTariff)) {        					                			                	
+//				tariffRepo.addSpecification(tempTariff);
+//				tariffCharges.put(tempTariff,0d);
+//				tariffCustomerCount.put(tempTariff,0);
+//				brokerContext.sendMessage(tempTariff);
+//			}else {
+//				System.out.println("Not publishing");
+//			}            	        
+//		}
+//  }
   
   private void revokeConsumptionTariff(TariffSpecification spec) {
 		double enemyBestRate = findBestCompetitiveTariff(spec.getPowerType(),false);
@@ -1073,7 +1181,7 @@ private ApplicationContext ctx;
 
   private void determineState() {
 	  double customerPercentage = calculatePercentage(consumptionCustomers, consumptionCustomersTotal) ;
-      if (customerPercentage > params.CONS_COUNT_EQUAL_BOUND) {
+      if (customerPercentage > 50) {
     	  state = State.NORMAL;
     	  state_duration = 0;
     	  return;
@@ -1129,8 +1237,11 @@ private int remainingActiveTariff(PowerType pt) {
 		  if (Math.abs(avgrate - calculateAvgRate(t, false)) < 0.005*multiplier && spec.getPowerType() == PowerType.CONSUMPTION)
 			  return true;
 		  
-		  if (Math.abs(avgrate - calculateAvgRate(t, false)) < 0.004 && spec.getPowerType().isProduction())
-			  return true;			  			  
+		  if (Math.abs(avgrate - calculateAvgRate(t, false)) < 0.0035 && spec.getPowerType().isProduction())
+			  return true;		
+		  
+		  if (Math.abs(avgrate - calculateAvgRate(t, false)) < 0.0035 && spec.getPowerType() == PowerType.THERMAL_STORAGE_CONSUMPTION)
+			  return true;	
 	  }	  
 	  return false;
   }
@@ -1541,124 +1652,117 @@ private int remainingActiveTariff(PowerType pt) {
 	  return spec ;
   }
   
-  private TariffSpecification mutateProductionTariff(TariffSpecification spec,boolean beginning,double avg,boolean mutateDown) {
+  private TariffSpecification mutateProductionTariff(TariffSpecification spec,boolean isInitial,boolean cheapen) {
 	  Random rnd = new Random();
-	  double ep = Parameters.Ep;
-	  double temp ;  	 
+	  	  
+	  double temp;
+ 	 
 	  TariffSpecification newTariff = new TariffSpecification(brokerContext.getBroker(), spec.getPowerType());
-	  
-	  //Mutating Early withdrawal payment
-	  newTariff.withEarlyWithdrawPayment(-2*rnd.nextDouble()*Parameters.Ebp - 10);
+	  	  
 	  newTariff.withSignupPayment(0);
+	  
+	  newTariff.withEarlyWithdrawPayment( -2*rnd.nextDouble()*Parameters.Ebp - 5);
+	  
 	  newTariff.withMinDuration(Parameters.timeslotMS * (Parameters.reevaluationProduction - 2)*100);
 	  
-	  //Mutating avg rate value
-	  if(!beginning) {
+	  Rate r = new Rate();
+	  
+	  if(isInitial) {
+		  double perPay = (rnd.nextInt(5) + 10.0) / 100.0; 	  
+		  perPay = - 0.012 / perPay;	  
+		  		 
+		  newTariff.withPeriodicPayment(perPay);
 		  
-		  spec = findBestCompProductionTariff(spec.getPowerType());
-		  temp = calculateAvgRate(spec,false);
-		  temp = calculateAvgProdRate(spec, temp);
-		  ep = Parameters.LowerEp;
-//		  double roll = rnd.nextDouble();
-//		  boolean flag = false;
-		  System.out.println("Current minimum prod tariff avg: "+ temp);
-//		  if(temp == 0 ) { 
-//			  temp = 0.01; 
-//		  }else if( temp > LowerBound && roll > Parameters.LowerBoundRollChance) {
-//			  temp = LowerBound; 
-//		  }else if( temp > LowerBound && roll < Parameters.LowerBoundRollChance) {
-//			  flag = true;
-//		  }
-
-//		  roll = rnd.nextDouble();
-		  
-		  //always mutate down if avg is bigger than bound
-//		  if(roll < 0.85 || temp < LowerBound || flag) {
-//			  temp = temp + rnd.nextDouble()*ep + Parameters.LowerEpOffset;
-//		  }else {
-//			  temp = temp - rnd.nextDouble()*ep;
-//		  }
-		  
-		  temp = temp + rnd.nextDouble()*ep + Parameters.LowerEpOffset;
-		  
-		  if(avg != 0 ) {
-			  if(mutateDown == true) {
-				  temp = avg + rnd.nextDouble()*ep/2 + 0.005;
-			  }else {
-				  temp = avg - rnd.nextDouble()*ep/2 - 0.0065;  
-			  }			  
-		  }
-		  
-		  // check upper bound
-//		  if(UpperBound> temp) {
-//			  temp = UpperBound + rnd.nextDouble()*ep ;
-////			  temp = Parameters.UpperBoundStatic + ep - 2*rnd.nextDouble()*ep;
-//		  }
-		  
-		  
-		  
+		  r.withMinValue(0.012 + 0.015 -perPay/20);
 	  }else {
-//		  temp = Parameters.LowerBoundStatic - rnd.nextDouble()*0.01; 
-		  temp = 0.012;
+		  newTariff.withPeriodicPayment(spec.getPeriodicPayment());
+		  if(cheapen) {
+			  temp = calculateAvgRate(spec, false) + rnd.nextDouble()*Parameters.LowerEp + Parameters.LowerEpOffset*1.75 ;
+			  if(temp > 0.05) {
+				  temp = 0.05 + rnd.nextDouble()*Parameters.LowerEp;
+			  }
+		  }else {
+			  temp = calculateAvgRate(spec, false) - rnd.nextDouble()*Parameters.LowerEp - Parameters.LowerEpOffset;
+		  }
+		  r.withMinValue(temp);
 	  }
 	  
-//	  if(temp > LowerBoundABS) {
-//		  temp = LowerBoundABS - rnd.nextDouble()* Parameters.LowerEpOffset;
-//	  }
-	  
-	  double perPay = (rnd.nextInt(5) + 10.0) / 100.0; 	  
-	  perPay = - temp / perPay;	  
-	  
-	  Rate r = new Rate();
-	  r.withMinValue(temp + 0.015 -perPay/20);
 	  newTariff.addRate(r);
-	 
-	  newTariff.withPeriodicPayment(perPay);
-//	  double tmp = avg + t.getPeriodicPayment()/20- 0.015;	
+	  	  
 	  System.out.print("My NEW Tariff: ");
 	  printTariff(newTariff);
 	  
-	  return newTariff;	  
+	  if(checkIfAlreadyExists(newTariff)) {
+		  System.out.println("Already Exists");
+		  return null;
+	  }
+	  
+	  return newTariff;
   }
   
   //Default function to mutate a tariff 
-  private TariffSpecification mutateStorageTariff(TariffSpecification spec) {
+  private TariffSpecification mutateStorageTariff(TariffSpecification spec,boolean isInitial,boolean cheapen) {
 	  Random rnd = new Random();
 	  
 	  double eReg = Parameters.Ereg;
 	  double temp;
+ 	 
+	  TariffSpecification newTariff = new TariffSpecification(brokerContext.getBroker(), spec.getPowerType());
+	  	  
+	  newTariff.withSignupPayment(0);
 	  
-	  spec.withSignupPayment(0);
+	  newTariff.withEarlyWithdrawPayment( - rnd.nextDouble()*10 - 10);
 	  
-	  spec.withEarlyWithdrawPayment( - rnd.nextDouble()*10 - 10);
+	  newTariff.withMinDuration(Parameters.timeslotMS * (5*Parameters.reevaluationStorage-2));
 	  
-	  spec.withMinDuration(Parameters.timeslotMS * (5*Parameters.reevaluationStorage-2));
+	  newTariff.withPeriodicPayment(0);
 	  
-	  temp = -rnd.nextDouble()*0.015 - 0.09;
-	  spec = produceTOURates(spec,temp,0);
-	  spec.withPeriodicPayment(0);
+	  if(isInitial) {
+		  temp = -rnd.nextDouble()*0.015 - 0.09;  
+	  }else {
+		  if(cheapen) {
+			  temp = calculateAvgRate(spec, false) + rnd.nextDouble()*Parameters.LowerEp + Parameters.LowerEpOffset*1.75 ;
+			  if(temp > -0.0825) {
+				  temp = -0.0825 + rnd.nextDouble()*Parameters.LowerEp;
+			  }
+		  }else {
+			  temp = calculateAvgRate(spec, false) - rnd.nextDouble()*Parameters.LowerEp - Parameters.LowerEpOffset;
+		  }
+	  }
+	  
+	  newTariff = produceTOURates(newTariff,temp,0);	  
 	  
 	  double downReg,upReg;
 	  //Mutate RegRates
-
-	  downReg = -0.02 - eReg/10 + 2 * eReg/10 * rnd.nextDouble();
-	  upReg = 0.1 - eReg + 2 * eReg * rnd.nextDouble();
-	  if(downReg > 0) {
-		  downReg = - downReg;
+	  
+	  if(isInitial) {
+		  downReg = -0.02 - eReg/10 + 2 * eReg/10 * rnd.nextDouble();
+		  upReg = 0.1 - eReg + 2 * eReg * rnd.nextDouble();
+		  if(downReg > 0) {
+			  downReg = - downReg;
+		  }
+		  if(upReg < 0) {
+			  upReg = - upReg;
+		  }
+	  }else {
+		  downReg = spec.getRegulationRates().get(0).getDownRegulationPayment();
+		  upReg = spec.getRegulationRates().get(0).getUpRegulationPayment();
 	  }
-	  if(upReg < 0) {
-		  upReg = - upReg;
-	  }
+	  
 	  RegulationRate reg = new RegulationRate();
 	  
 	  reg.withDownRegulationPayment(downReg);
 	  reg.withUpRegulationPayment(upReg);
 	  
-	  spec.addRate(reg);
+	  newTariff.addRate(reg);
 	  
 	  System.out.print("My NEW Tariff: ");
-	  printTariff(spec);	  
-	  return spec;
+	  printTariff(newTariff);
+	  if(checkIfAlreadyExists(newTariff)) {
+		  System.out.println("Already Exists");
+		  return null;
+	  }
+	  return newTariff;
   }
   
   private TariffSpecification mutateConsumptionTariff(TariffSpecification spec,boolean beginning,double avg,boolean mutateDown) {
@@ -1841,17 +1945,12 @@ private int remainingActiveTariff(PowerType pt) {
 	  
 	  double min = -10000,tmp = 0;
 	  TariffSpecification minTariff = null;
-//	  List<TariffSpecification> l = ;
-	  
-//	  System.out.println("my Best TArrs");
+
 	  for(TariffSpecification t : tariffCharges.keySet()) {
 
 		  if(t.getPowerType() != pt)
 			  continue;
-//		  printTariff(t);
-//		  if(tariffCharges.get(t) <= 5)
-//			  continue;
-		  
+
 		  tmp = calculateAvgRate(t,false);	  		 
 		  
 		  if(tmp > min) {
@@ -1859,13 +1958,10 @@ private int remainingActiveTariff(PowerType pt) {
 			  minTariff = t;
 		  }
 	  }
-//	  System.out.print("Best: " );
-//	  if(minTariff!= null)
-//		  printTariff(minTariff);
+
 	  return minTariff;
   }
   
-  @SuppressWarnings("unused")
   private TariffSpecification findMyBestProdTariff(PowerType pt) {
   
 	  double max = -10000;
@@ -2037,6 +2133,7 @@ private TariffSpecification findBestCompProductionTariff(PowerType pt) {
     	case "THERMAL_STORAGE_CONSUMPTION":
     		System.out.print( "< "+count+" / "+ tHCCustomers +" > +/- "+ (count-tariffCustomerCount.get(spec)) +" \\ ");
     		tariffCustomerCount.put(spec,count);
+    		thermalCustomersTotal += count;
     		totalThermalProfits += charge;
     		break;
     	case "SOLAR_PRODUCTION":
@@ -2285,7 +2382,7 @@ private TariffSpecification findBestCompProductionTariff(PowerType pt) {
 					continue;
 				}
 				tempTariff = new TariffSpecification(brokerContext.getBroker(), PowerType.THERMAL_STORAGE_CONSUMPTION);
-				tempTariff = mutateStorageTariff(tempTariff);   				
+				tempTariff = mutateStorageTariff(tempTariff,true,false);   				
 				
 				customerSubscriptions.put(tempTariff, new LinkedHashMap<>());
 				tariffRepo.addSpecification(tempTariff);
@@ -2294,7 +2391,7 @@ private TariffSpecification findBestCompProductionTariff(PowerType pt) {
   	        	brokerContext.sendMessage(tempTariff);
 			}else if(pt.isProduction() && enableGProduction) {
 				tempTariff = new TariffSpecification(brokerContext.getBroker(), pt);
-				tempTariff = mutateProductionTariff(tempTariff,true,0,false);   				
+				tempTariff = mutateProductionTariff(tempTariff,true,true);   				
  
 				customerSubscriptions.put(tempTariff, new LinkedHashMap<>());
 				tariffRepo.addSpecification(tempTariff);
