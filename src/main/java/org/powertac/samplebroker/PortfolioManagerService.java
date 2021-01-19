@@ -814,7 +814,6 @@ private ApplicationContext ctx;
 	  TariffSpecification tempTariff;
 	  double customerPercentage = calculatePercentage(consumptionCustomers, consumptionCustomersTotal) ;	  
 //	  System.out.println("Best Enemy AVG Cons: " + eb);
-	  setMonthBoundedVariables();
 	  
       //when we have  the monopoly revoke all tariffs that are below LowerBound
       if(customerPercentage > params.CONS_COUNT_UPPER_BOUND + weatherBoundOffset ) {
@@ -937,37 +936,6 @@ private ApplicationContext ctx;
 		}
   }
   
-  private void setMonthBoundedVariables() {
-	  
-	  weatherBoundOffset = 0;
-	  if(lowerBoundOffset != 0) {		  
-		  return;
-	  }
-	  
-	  if(marketManager.getComp().getLatitude() >= 42 ) {
-		  
-		  if(currentMonth == 11 && currentDay > 15) {			  
-			  weatherBoundOffset = -5;			  
-		  }else if (currentMonth == 12 || currentMonth == 1 || currentMonth == 2  ) {
-			  weatherBoundOffset = -5;
-		  }
-		  
-	  }else if(marketManager.getComp().getLatitude() >= 37 ) {		  
-		  
-		  if (currentMonth == 12 || currentMonth == 1   ) {
-			  weatherBoundOffset = -5;
-		  }
-	  }else if(marketManager.getComp().getLatitude() >= 30 ) {		  
-		  
-		  if (currentMonth == 6 || currentMonth == 7 || currentMonth == 8   ) {
-			  weatherBoundOffset = -2.5;
-		  }
-	  }
-	  
-	  
-	  
-	  return;
-  }
   
   private void calculateCustomerCounts() {
 	  for (TariffSpecification spec : customerSubscriptions.keySet()) {
@@ -975,7 +943,7 @@ private ApplicationContext ctx;
 				continue;
 			}    				    			
 			
-			printCustomerInfo(spec);
+//			printCustomerInfo(spec);
 	  }
   }
 
@@ -1118,16 +1086,8 @@ private int remainingActiveTariff(PowerType pt) {
 			  }			  	
 		  }
 		  
-		  ctx = new AnnotationConfigApplicationContext(Parameters.class);
-		  params = ctx.getBean(Parameters.class);
 		  LowerBoundABS = params.LowerBoundStaticAbsolute;
 		  
-		  if(timeslotIndex > 1500) {
-			  LowerBound -= 0.005;
-			  LowerBoundABS -= 0.005;
-			  middleBoundOffset = - 7.5;
-			  lowerBoundOffset = - 10;
-		  }
   
 //		  System.out.printf("LowerBoundABS: %.3f \tLower Bound: %.3f \t Upper Bound: %.3f \t TS: %d\n",LowerBoundABS,LowerBound,UpperBound,timeslotIndex);		  
 //		  System.out.println(params.CONS_COUNT_LOWER_BOUND + " Offset: " + lowerBoundOffset);
@@ -1965,7 +1925,7 @@ private int remainingActiveTariff(PowerType pt) {
   
   private void createInitialTariffs() {	  
 	  TariffSpecification tempTariff;
-	  System.out.println("Creating Initial Tariffs....");
+//	  System.out.println("Creating Initial Tariffs....");
 	  for (PowerType pt : customerProfiles.keySet()) {
 		  
 			if( pt == PowerType.CONSUMPTION && enableGConsumption) {

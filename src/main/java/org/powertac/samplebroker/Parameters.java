@@ -68,17 +68,17 @@ public class Parameters {
 	  
 	  //Percentages % (0-100)
 	  @Value("${CONS_COUNT_UPPER_BOUND}")
-	  public double CONS_COUNT_UPPER_BOUND = 92.5;
+	  public double CONS_COUNT_UPPER_BOUND = 95;
 	  @Value("${CONS_COUNT_MIDDLE_BOUND}")
 	  public double CONS_COUNT_MIDDLE_BOUND = 65;
 	  @Value("${CONS_COUNT_EQUAL_BOUND}")
-	  public double CONS_COUNT_EQUAL_BOUND = 55;
+	  public double CONS_COUNT_EQUAL_BOUND = 50;
 	  @Value("${CONS_COUNT_LOWER_BOUND}")
-	  public double CONS_COUNT_LOWER_BOUND = 45;
+	  public double CONS_COUNT_LOWER_BOUND = 40;
 	  @Value("${CONS_COUNT_LOWEST_BOUND}")
-	  public double CONS_COUNT_LOWEST_BOUND = 35;
+	  public double CONS_COUNT_LOWEST_BOUND = 25;
 	  @Value("${STATE_CHANGE_INTERVAL}")
-	  public double STATE_CHANGE_INTERVAL = 35;
+	  public double STATE_CHANGE_INTERVAL = 48;
 	 
 	  public static int Ecl = timeslotMS* (4* reevaluationCons/5)*10000;
 	  public static double Ereg = 0.05;
