@@ -51,7 +51,7 @@ import org.powertac.samplebroker.interfaces.ContextManager;
 import org.powertac.samplebroker.interfaces.Initializable;
 import org.powertac.samplebroker.interfaces.MarketManager;
 import org.powertac.samplebroker.interfaces.PortfolioManager;
-import org.powertac.samplebroker.utility.ExcelWriter;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
@@ -187,7 +187,6 @@ implements PortfolioManager, Initializable, Activatable
   private double LowerBound = Parameters.LowerBoundStatic;
   private double UpperBound = Parameters.UpperBoundStatic;
   
-  public ExcelWriter excelWriter;
     
   // These customer records need to be notified on activation
   private List<CustomerRecord> notifyOnActivation = new ArrayList<>();
@@ -413,9 +412,8 @@ private ApplicationContext ctx;
       addCompetingTariff(spec);      
       tariffRepo.addSpecification(spec);
 //      triggerEvaluation = true;
-      
-      System.out.print("New Tariff: ");
-	  printTariff(spec);	
+
+//	  printTariff(spec);	
     }
   }
 
@@ -563,8 +561,7 @@ private ApplicationContext ctx;
       }
 	  triggerEvaluation = true; 
       competingTariffs.get(original.getPowerType()).remove(original);
-      System.out.print("REVOKE: " + tr.getTariffId() + "  ");
-      printTariff(tariffRepo.findSpecificationById(tr.getTariffId()));
+//      printTariff(tariffRepo.findSpecificationById(tr.getTariffId()));
       
       candidates.remove(original);
     }
@@ -601,7 +598,7 @@ private ApplicationContext ctx;
 		  //Reevaluate Power and thermal tariffs
 		  if((timeslotIndex-360 + 70) % 168 == 0) { // && timeslotIndex != 458) {
 			  secondaryTariffEn = true;
-			  System.out.println("\nMIDDLE-evaluation!!!!!\n");			 		 
+		 		 
 		  }
 		  
 //		  System.out.printf("-->Energy Usage: %.2f KWh   ts %d \n",totalEnergyUsed[timeslotIndex-1],timeslotIndex-1);
@@ -622,22 +619,21 @@ private ApplicationContext ctx;
 	    	  timer ++;	    	  
 	      }	
 	  } catch (Exception e) {
-		  System.out.println(e.toString());
-		  System.out.println("ERROR in MAIN !!!!!!!!!!!\n\n\n\n\n\n\n\n\n\n\n");
+
 		  
 	  }
       
       for (CustomerRecord record: notifyOnActivation)
         record.activate();
       
-      System.out.println("-");
+
   }  
   
   	private void generalTariffStrategy(int timeslotIndex) {
- 		printDemandPeaks();        		 
+// 		printDemandPeaks();        		 
 		calculateWeightsPredictor();		    		
 		
-		printBalanceStats();		
+//		printBalanceStats();		
 		calculateCustomerCounts();
 		determineState();		
 		
@@ -654,10 +650,10 @@ private ApplicationContext ctx;
 			
 		}
 		
-		System.out.println("-- Total Therm Consumers: \t" + thermalCustomersTotal + " / " + tHCCustomers + " ");
-		System.out.println("-- Total Solar Consumers: \t" + solarCustomersTotal + " / " + solarCustomers + " ");
-		System.out.println("-- Total Wind  Consumers: \t" + windCustomersTotal + " / " + windCustomers + " ");
-		System.out.println("-- Total Cons  Consumers: \t" + consumptionCustomersTotal + " / " + consumptionCustomers + " \n");
+//		System.out.println("-- Total Therm Consumers: \t" + thermalCustomersTotal + " / " + tHCCustomers + " ");
+//		System.out.println("-- Total Solar Consumers: \t" + solarCustomersTotal + " / " + solarCustomers + " ");
+//		System.out.println("-- Total Wind  Consumers: \t" + windCustomersTotal + " / " + windCustomers + " ");
+//		System.out.println("-- Total Cons  Consumers: \t" + consumptionCustomersTotal + " / " + consumptionCustomers + " \n");
 		
 		consumptionTariffStrategy();  
 				
@@ -666,13 +662,13 @@ private ApplicationContext ctx;
 		}
 		
 		if(secondaryTariffEn && marketManager.getCompetitors() < 7) {
-			System.out.println("Solar  : " + solar_Passed );
-			System.out.println("Wind   : " + wind_Passed );
-			System.out.println("Thermal: " + thermal_Passed );
+//			System.out.println("Solar  : " + solar_Passed );
+//			System.out.println("Wind   : " + wind_Passed );
+//			System.out.println("Thermal: " + thermal_Passed );
 			secondaryTariffStrategy();
 		}
 		
-		printCompTariffs(timeslotIndex);
+//		printCompTariffs(timeslotIndex);
 		
 		resetGlobalCounters();
   }
@@ -702,7 +698,7 @@ private ApplicationContext ctx;
 		  //revoke cheapest energy tariff 
 		  tempTariff = findMyBestProdTariff(PowerType.SOLAR_PRODUCTION);
 		  if(remainingActiveTariff(PowerType.SOLAR_PRODUCTION) > 1) {
-			  System.out.println("Revoking cheapest solar tariff");
+//			  System.out.println("Revoking cheapest solar tariff");
 			  revokeTariff(tempTariff); 
 		  }		 
 	  }
@@ -770,7 +766,7 @@ private ApplicationContext ctx;
 		int activeTariffs = remainingActiveTariff(spec.getPowerType());
 		
 		if((myRate - enemyBestRate) > 0.025  && enemyBestRate != -1 && activeTariffs != 1) {
-			System.out.println("Revoked: " + spec.getId());
+//			System.out.println("Revoked: " + spec.getId());
 	        // revoke the old one
 			revokeTariff(spec);
 	        
@@ -816,9 +812,8 @@ private ApplicationContext ctx;
    */
   private void consumptionTariffStrategy() {
 	  TariffSpecification tempTariff;
-	  double customerPercentage = calculatePercentage(consumptionCustomers, consumptionCustomersTotal) ;
-	  double eb = findBestCompetitiveTariff(PowerType.CONSUMPTION,false);    	
-	  System.out.println("Best Enemy AVG Cons: " + eb);
+	  double customerPercentage = calculatePercentage(consumptionCustomers, consumptionCustomersTotal) ;	  
+//	  System.out.println("Best Enemy AVG Cons: " + eb);
 	  setMonthBoundedVariables();
 	  
       //when we have  the monopoly revoke all tariffs that are below LowerBound
@@ -828,7 +823,7 @@ private ApplicationContext ctx;
       	for (TariffSpecification t : tariffCharges.keySet()) {
       		if (t.getPowerType() == PowerType.CONSUMPTION && calculateAvgRate(t, false) > LowerBound ||
       			((-calculateAvgRate(t, false) + enemyBestRate) < -0.0025  && enemyBestRate != -1 && PowerType.CONSUMPTION == t.getPowerType())) {
-  				System.out.println("Revoking under Bound Tariffs");
+//  				System.out.println("Revoking under Bound Tariffs");
   			
   				list.add(t);
   				tariffCustomerCount.remove(t);
@@ -850,7 +845,7 @@ private ApplicationContext ctx;
 			if (spec != null ) {
 //				System.out.println("-- " + calculateAvgRate(spec, false) + "  |  -- " +  findBestCompetitiveTariff(PowerType.CONSUMPTION, false ));
 				if ((-calculateAvgRate(spec, false) + findBestCompetitiveTariff(PowerType.CONSUMPTION, false )) < -0.0025){
-					System.out.println("Revoking Cheapest Tariff");
+//					System.out.println("Revoking Cheapest Tariff");
 					
 					revokeTariff(spec);
 	   	        
@@ -905,8 +900,8 @@ private ApplicationContext ctx;
   
   
   private void publishTariff(TariffSpecification tempTariff) {
-	  System.out.print("My NEW Tariff: ");
-	  printTariff(tempTariff);	  
+//	  System.out.print("My NEW Tariff: ");
+//	  printTariff(tempTariff);	  
 	  tariffRepo.addSpecification(tempTariff);
 	  tariffCharges.put(tempTariff,0d);
 	  tariffCustomerCount.put(tempTariff,0);
@@ -931,14 +926,14 @@ private ApplicationContext ctx;
       if( customerPercentage < params.CONS_COUNT_LOWEST_BOUND + lowerBoundOffset + weatherBoundOffset  ) {
     	  if(state == State.NORMAL) {
     		  state_duration += Parameters.reevaluationCons;  
-    		  System.out.println("UNDER 30%: " + state_duration + " timeslots");
+//    		  System.out.println("UNDER 30%: " + state_duration + " timeslots");
     		  if(state_duration > params.STATE_CHANGE_INTERVAL) {
     			  state = State.LOW_PERCENTAGE;    			  
     		  }
     	  }    	  
       }
       if(state != State.NORMAL) {
-			System.out.println("-State : \t" + state.toString());	
+//			System.out.println("-State : \t" + state.toString());	
 		}
   }
   
@@ -1083,12 +1078,12 @@ private int remainingActiveTariff(PowerType pt) {
 		  
 		  threshold = d[0] + gamaParameter*d[1];
 		  double fees = 0;
-		  System.out.printf("Mean: %.2f \t Deviation: %.2f \t Threshold Prediction: %.2f\n",d[0],d[1],threshold);		
+//		  System.out.printf("Mean: %.2f \t Deviation: %.2f \t Threshold Prediction: %.2f\n",d[0],d[1],threshold);		
 		 
 		  double mineEnergy = 1 , total = 0,totalFeesMine = 0;
 		  for(int i = 0; i<3;i++) {
 			  mineEnergy = 1;
-			  System.out.printf("Peak: %.2f KWh \t Diff: %.2f KWh \tTS:%4d ",peakDemand[i],peakDemand[i]-realThreshold,peakDemandTS[i]);
+//			  System.out.printf("Peak: %.2f KWh \t Diff: %.2f KWh \tTS:%4d ",peakDemand[i],peakDemand[i]-realThreshold,peakDemandTS[i]);
 			  if(peakDemand[i] > realThreshold) {
 				  for(int j = 0 ;j<3;j++) {
 					  if(marketManager.getCapacityFees()[j] != null) { 					
@@ -1103,16 +1098,16 @@ private int remainingActiveTariff(PowerType pt) {
 //					  }
 				  }
 				  if(mineEnergy == 1) {
-					  System.out.println(" ");
+//					  System.out.println(" ");
 					  break;
 				  }  
 				  //total energy of all brokers at that timeslot
 				  total =  (totalEnergyUsed[peakDemandTS[i]]*(peakDemand[i]-realThreshold))/mineEnergy;
-				  System.out.printf("\tFees: % 10.2f E \t Total Energy of all brokers: % .2f \n" , 18*(peakDemand[i]-realThreshold),total);
+//				  System.out.printf("\tFees: % 10.2f E \t Total Energy of all brokers: % .2f \n" , 18*(peakDemand[i]-realThreshold),total);
 				  fees += 18*(peakDemand[i]-realThreshold);
 			  }			  
 		  }
-		  System.out.printf("Total capacity fees: %.2f E \t Total Mine: %.2f E\t Threshold: %.2f\n",fees,totalFeesMine,realThreshold);
+//		  System.out.printf("Total capacity fees: %.2f E \t Total Mine: %.2f E\t Threshold: %.2f\n",fees,totalFeesMine,realThreshold);
 		  
 		  if(Math.abs(totalFeesMine) < Parameters.LowerBoundChangerFees) {
 			  LowerBound += 0.005; 			  
@@ -1134,19 +1129,19 @@ private int remainingActiveTariff(PowerType pt) {
 			  lowerBoundOffset = - 10;
 		  }
   
-		  System.out.printf("LowerBoundABS: %.3f \tLower Bound: %.3f \t Upper Bound: %.3f \t TS: %d\n",LowerBoundABS,LowerBound,UpperBound,timeslotIndex);		  
-		  System.out.println(params.CONS_COUNT_LOWER_BOUND + " Offset: " + lowerBoundOffset);
-		  System.out.println(params.CONS_COUNT_MIDDLE_BOUND + " Offset: " + middleBoundOffset);
-		  System.out.println(params.CONS_COUNT_UPPER_BOUND);
-		  System.out.println("WeatherBoundOffset: " + weatherBoundOffset);
-		  System.out.printf("Total Cons Profits: \t % 11.2f\n",totalConsumptionProfits);
-		  System.out.printf("Total Wind Profits: \t % 11.2f\n",totalWindProfits);
-		  System.out.printf("Total Solar Profits: \t % 11.2f\n",totalSolarProfits);
-		  System.out.printf("Total Thermal Profits: \t % 11.2f\n",totalThermalProfits);
-		  System.out.printf("Total Balancing Costs: \t % 11.2f\n",totalBalancingCosts);
-		  System.out.printf("Priod Balancing Costs: \t % 11.2f\n",totalAssessmentBalancingCosts);
+//		  System.out.printf("LowerBoundABS: %.3f \tLower Bound: %.3f \t Upper Bound: %.3f \t TS: %d\n",LowerBoundABS,LowerBound,UpperBound,timeslotIndex);		  
+//		  System.out.println(params.CONS_COUNT_LOWER_BOUND + " Offset: " + lowerBoundOffset);
+//		  System.out.println(params.CONS_COUNT_MIDDLE_BOUND + " Offset: " + middleBoundOffset);
+//		  System.out.println(params.CONS_COUNT_UPPER_BOUND);
+//		  System.out.println("WeatherBoundOffset: " + weatherBoundOffset);
+//		  System.out.printf("Total Cons Profits: \t % 11.2f\n",totalConsumptionProfits);
+//		  System.out.printf("Total Wind Profits: \t % 11.2f\n",totalWindProfits);
+//		  System.out.printf("Total Solar Profits: \t % 11.2f\n",totalSolarProfits);
+//		  System.out.printf("Total Thermal Profits: \t % 11.2f\n",totalThermalProfits);
+//		  System.out.printf("Total Balancing Costs: \t % 11.2f\n",totalBalancingCosts);
+//		  System.out.printf("Priod Balancing Costs: \t % 11.2f\n",totalAssessmentBalancingCosts);
 		  totalAssessmentBalancingCosts = 0;
-		  System.out.println(" ");
+//		  System.out.println(" ");
 	  }
 
 	  marketManager.resetCapacityFees();
@@ -1765,7 +1760,7 @@ private int remainingActiveTariff(PowerType pt) {
 	    }
 //	    System.out.print("\t");
 	    
-		printTariff(spec);
+//		printTariff(spec);
   }
   
   public void printTariff(TariffSpecification t) {
@@ -1897,7 +1892,7 @@ private int remainingActiveTariff(PowerType pt) {
 //	      					continue;
 //	      				}
 //	      			}
-	  				printTariff(spec);      			
+//	  				printTariff(spec);      			
 	      		}
 	  		}	
 //		}else {

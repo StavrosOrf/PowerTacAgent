@@ -15,8 +15,6 @@
  */
 package org.powertac.samplebroker;
 
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Random;
@@ -40,7 +38,6 @@ import org.powertac.common.WeatherForecastPrediction;
 import org.powertac.common.WeatherReport;
 import org.powertac.common.config.ConfigurableValue;
 import org.powertac.common.msg.BalanceReport;
-import org.powertac.common.msg.DistributionReport;
 import org.powertac.common.msg.MarketBootstrapData;
 import org.powertac.common.repo.TimeslotRepo;
 import org.powertac.samplebroker.core.BrokerPropertiesService;
@@ -51,8 +48,7 @@ import org.powertac.samplebroker.interfaces.Initializable;
 import org.powertac.samplebroker.interfaces.MarketManager;
 import org.powertac.samplebroker.interfaces.PortfolioManager;
 import org.powertac.samplebroker.utility.Node;
-import org.powertac.samplebroker.utility.ExcelWriter;
-import org.powertac.samplebroker.utility.TeePrintStream;
+//import org.powertac.samplebroker.utility.ExcelWriter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -81,7 +77,6 @@ implements MarketManager, Initializable, Activatable
   @Autowired
   private ContextManager contextManager;
   
-  private ExcelWriter excelWriter;
 
   // ------------ Configurable parameters --------------
   // max and min offer prices. Max means "sure to trade"
@@ -203,36 +198,30 @@ implements MarketManager, Initializable, Activatable
   public synchronized void handleMessage (Competition comp)
   {
 	minMWh = Math.max(minMWh, comp.getMinimumOrderQuantity());
-    System.out.println("Competition name: "+ comp.getName());
-    System.out.print("Competitors: ");
-    for (String s : comp.getBrokers()) {
-		System.out.print(s+ " ");
-	}
-    System.out.println("");
-    System.out.println("Latitude: " + comp.getLatitude() + " Timezone Offset: " + comp.getTimezoneOffset());
+
     this.comp = comp;
     startTime = comp.getSimulationBaseTime();
     
     numberOfBrokers = comp.getBrokers().size() -1;
     
-	try {			   
-    	String os = System.getProperty("os.name");
-    	if(os.equals("Windows 10")) {
-    		FileOutputStream file = new FileOutputStream("..\\logs\\" + comp.getName() + ".output.txt");
-    	    TeePrintStream tee = new TeePrintStream(file, System.out);
-    	    System.setOut(tee);
-    	}else {
-    		FileOutputStream file = new FileOutputStream("../logs/" + comp.getName() + ".output.txt");
-    	    TeePrintStream tee = new TeePrintStream(file, System.out);
-    	    System.setOut(tee);
-    	}
-
-	    excelWriter = new ExcelWriter(comp.getName());
-	    
-	} catch (FileNotFoundException e) {		
-		System.out.println("error writing to file");
-		e.printStackTrace();
-	}
+//	try {			   
+//    	String os = System.getProperty("os.name");
+//    	if(os.equals("Windows 10")) {
+//    		FileOutputStream file = new FileOutputStream("..\\logs\\" + comp.getName() + ".output.txt");
+//    	    TeePrintStream tee = new TeePrintStream(file, System.out);
+//    	    System.setOut(tee);
+//    	}else {
+//    		FileOutputStream file = new FileOutputStream("../logs/" + comp.getName() + ".output.txt");
+//    	    TeePrintStream tee = new TeePrintStream(file, System.out);
+//    	    System.setOut(tee);
+//    	}
+//
+//	    excelWriter = new ExcelWriter(comp.getName());
+//	    
+//	} catch (FileNotFoundException e) {		
+//		System.out.println("error writing to file");
+//		e.printStackTrace();
+//	}
 	
   }
 
@@ -288,14 +277,7 @@ implements MarketManager, Initializable, Activatable
 		}
 	}
 
-	System.out.println("======================================================================================="
-			+ "========================================================");
-//	System.out.println("ts: " + dt.getPeakTimeslot() + "  " + dt.getBroker().getUsername()
-//			+ "  " + dt.getKWh() + "  " + dt.getThreshold() + "  " + dt.getCharge() );
-	System.out.printf("CapacityTransaction| peak ts:%5d Energy: %8.2f KWh ThreshHold: %8.2f  Costs: %10.2f E\n", 
-						dt.getPeakTimeslot(),dt.getKWh(),dt.getThreshold(), dt.getCharge());
-	System.out.println("======================================================================================="
-			+ "========================================================");
+
     log.info("Capacity tx: " + dt.getCharge());
   }
 
@@ -412,22 +394,7 @@ implements MarketManager, Initializable, Activatable
    */
   public synchronized void handleMessage (WeatherReport report)
   {    
-	  if((report.getTimeslotIndex() - 360) % 25 == 0 )
-		  excelWriter.writeCell(0,0,0,true);
-
-	  DistributionReport dr = contextManager.getReport();
-
-	  excelWriter.writeCell(dr.getTimeslot()-360,0,dr.getTimeslot(),false);
-	  excelWriter.writeCell(dr.getTimeslot()-360,1,dr.getTotalConsumption()-dr.getTotalProduction(),false);
-
-	  excelWriter.writeCell(dr.getTimeslot()-360,28,dr.getTotalConsumption(),false);
-	  
-	  int tempValue = 0;
-	  if(dr.getTotalConsumption()-dr.getTotalProduction() > portfolioManager.getCurrentThreshold() + Parameters.THRESHOLD_OFFSET) {
-		  tempValue = 1;
-	  }
-	  excelWriter.writeCell(dr.getTimeslot()-360,30,tempValue,false);
-	 
+ 
   }
 
   /**
@@ -436,10 +403,7 @@ implements MarketManager, Initializable, Activatable
    */
   public synchronized void handleMessage (BalanceReport report)
   {
-//	  System.out.printf("--> Imbalance:  %10.2f KWh\n" ,report.getNetImbalance());
-//	  System.out.printf("--> Imbalance: ts: %d  %10.2f M.P. %10.2f  \t Diff: % .2f\n" ,report.getTimeslotIndex(),report.getNetImbalance() 
-//			  	,broker.getBroker().findMarketPositionByTimeslot(report.getTimeslotIndex()).getOverallBalance()*1000,
-//			  	report.getNetImbalance()-broker.getBroker().findMarketPositionByTimeslot(report.getTimeslotIndex()).getOverallBalance()*1000); 
+
   }
 
   // ----------- per-timeslot activation ---------------
@@ -457,8 +421,6 @@ implements MarketManager, Initializable, Activatable
 	double neededKWh = 0.0;	
 	
     log.debug(" Current timeslot is " + timeslotIndex);
-    System.out.println("\n|------------------------------------|  Current timeslot is " + timeslotIndex 
-    			+" |  Day: "+ getTimeSlotDay(timeslotIndex) + "  Hour: " + getTimeSlotHour(timeslotIndex));
     for (Timeslot timeslot : timeslotRepo.enabledTimeslots()) {
       printAboutTimeslot(timeslot);
 //      System.out.println("usage record lentgh: " + broker.getUsageRecordLength());
@@ -537,7 +499,7 @@ implements MarketManager, Initializable, Activatable
     ArrayList<Node> visitedNodes;
     double Csim; // Total simulated cost of auctions done
 //    double Cbal = 0; // Estimated Balancing cost
-    double CbalUnitPrice = - 2* Math.abs(Parameters.buyLimitPriceMin)/2; // May need to reevaluate this!!!!!!!!!!!!!!!!TODO  
+    double CbalUnitPrice = - 2* Math.abs(Parameters.buyLimitPriceMin)/2; 
     double CavgUnit = 0; // Average Unit Cost 
     
     //Initialize 
@@ -592,7 +554,7 @@ implements MarketManager, Initializable, Activatable
     				}else {
             			double limitPriceMCTS = computeLimitPrice(timeslotBidding + tempHoursAhead,neededMWHTemp);
             			double clearingPrice = randomGen.nextGaussian()* OBSERVED_DEVIATION + limitPriceMCTS; 
-            			// TODO swap compute limit price with price predictor value
+            			
             			if(limitPriceMCTS > clearingPrice) {
             				Csim += neededMWHTemp * clearingPrice;
             				neededMWHTemp = 0;
@@ -615,7 +577,7 @@ implements MarketManager, Initializable, Activatable
 	    			//get a simulated clearing Price
 	    			double limitPriceMCTS = computeLimitPrice(timeslotBidding + curNode.hoursAhead,neededMWHTemp);
 	    			double clearingPrice = randomGen.nextGaussian()* OBSERVED_DEVIATION + limitPriceMCTS; 
-	    			// TODO swap compute limit price with price  value
+	    			
 	    			if(limitPriceMCTS > clearingPrice) {
 	    				Csim += neededMWHTemp * clearingPrice;
 	    				neededMWHTemp = 0;
@@ -633,7 +595,7 @@ implements MarketManager, Initializable, Activatable
     	for(Node n : visitedNodes) {
     		n.visitCount ++;
     		if(n.avgUnitCost != 0 ) {
-    			n.avgUnitCost = (n.avgUnitCost + CavgUnit)/2 ;// get the mean ,may need to change TBI TODO
+    			n.avgUnitCost = (n.avgUnitCost + CavgUnit)/2 ;
     		}else {
     			n.avgUnitCost = CavgUnit;
     		}		
