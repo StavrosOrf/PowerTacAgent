@@ -158,6 +158,7 @@ implements MarketManager, Initializable, Activatable
   
   private ArrayList<WeatherDataWithUsage> weatherDatas;
   private ArrayList<WeatherDataWithPeaks> weatherDatasPeaks;
+  private ArrayList<WeatherDataWithPeaks> weatherDataWithPeaksNOBoot;
 
   public MarketManagerService ()
   {
@@ -185,6 +186,7 @@ implements MarketManager, Initializable, Activatable
     
     weatherDatas = new ArrayList<WeatherDataWithUsage>();
     weatherDatasPeaks = new ArrayList<WeatherDataWithPeaks>();
+    weatherDataWithPeaksNOBoot = new ArrayList<WeatherDataWithPeaks>();
     
     for(int i = 0 ; i<24 ; i++) {
     	clearingPricesWe[i] = 30;
@@ -482,6 +484,12 @@ implements MarketManager, Initializable, Activatable
 		  prevWeatherReport = report;
 		  return;
 	  }
+	  
+	  if(report.getTimeslotIndex()> 384) {
+		  weatherDataWithPeaksNOBoot.add(www);
+	  }
+	  
+	  
 	  int temp = prevWeatherReport.getTimeslotIndex();
 //	  System.out.println("Weather| ts: " + temp +" " + prevWeatherReport.getCloudCover() );
 //	  DistributionReport d = contextManager.getReport();
@@ -508,15 +516,17 @@ implements MarketManager, Initializable, Activatable
 			   ,contextManager.getUsage(temp)/1000,t);	  
 	  
 	  if(report.getTimeslotIndex() > 371) {
-		  ObjectToJson.toJSONPeaks(www);
+//		  ObjectToJson.toJSONPeaks(www);
 		  //TODO call PEAKS from predictor
 	  }
 	  
 	  if(contextManager.getUsage(temp) == 0 && report.getTimeslotIndex() > 371 ) {
 		  System.out.println("Error in fitUsage creation");
-	  }else if(report.getTimeslotIndex() > 371 && trainingTimer == 0){
-		  energyPredictor.fitData();
 	  }
+//	  else if(report.getTimeslotIndex() > 371 && trainingTimer == 0){
+//		  energyPredictor.fitData();//TODO
+//	  }
+
 	  
 //	  portfolioManager.setBatchWeather(w);
 	  
@@ -570,9 +580,17 @@ implements MarketManager, Initializable, Activatable
 		  //TODO call retrain
 		  System.out.println("Re-train!!!!!");
 		  energyPredictor.retraintData((int) Math.round(portfolioManager.getCurrentThreshold()));
-		  trainingTimer = 10;
-		  
+		  trainingTimer = 10;		  
 	  }
+	  
+	  if((timeslotIndex-360) % 24 == 0 && timeslotIndex != 360  && timeslotIndex != 384) {
+		  //TODO call fit
+		  ObjectToJson.toJSONPeaks(weatherDataWithPeaksNOBoot);
+		  weatherDataWithPeaksNOBoot.clear();
+		  energyPredictor.fitData();
+		  System.out.println("\n\n\n==================\nFIT\\n==================\\n\n");
+	  }
+	  
 	
     log.debug(" Current timeslot is " + timeslotIndex);
     System.out.println("\n|------------------------------------|  Current timeslot is " + timeslotIndex 
