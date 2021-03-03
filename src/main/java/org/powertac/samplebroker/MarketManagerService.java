@@ -412,18 +412,27 @@ implements MarketManager, Initializable, Activatable
 	  ArrayList<WeatherData> weatherlist = new ArrayList<WeatherData>();
 	  
 	  for(WeatherForecastPrediction f : forecast.getPredictions()) {
-		  
+		  if (counter >= 8 ) {
+			  break;
+		  }
 		  hour = getTimeSlotHour(ts + f.getForecastTime());
 		  day = getTimeSlotDay(ts + f.getForecastTime());
+		  int month =  timeslotRepo.currentTimeslot().getStartInstant().get(DateTimeFieldType.monthOfYear());
+		  int year = timeslotRepo.currentTimeslot().getStartInstant().get(DateTimeFieldType.year());  
 		  
-		  weatherlist.add(new WeatherData(day, hour, ts+f.getForecastTime(), f.getTemperature(), f.getWindSpeed(), f.getWindDirection(), f.getCloudCover()));
+		  
+		  weatherlist.add(new WeatherData(hour,day,month,year, f.getTemperature(), f.getWindSpeed(), f.getWindDirection(), 
+				  	f.getCloudCover(), ts+f.getForecastTime()));
+		  counter++;
 	  }
+	  
 	  ObjectToJson.toJSON(forecast);
 	  ObjectToJson.toJSONForecast(weatherlist);
 	  
 	  hour = getTimeSlotHour(ts);
 	  day = getTimeSlotDay(ts);
-
+	  counter = 0;
+	  
       if(ts > 370 && trainingTimer == 0) {
           results = energyPredictor.predict();
 //          if(results[0] == 0) {
@@ -464,6 +473,8 @@ implements MarketManager, Initializable, Activatable
   {
 	  int hour = getTimeSlotHour( report.getTimeslotIndex());
 	  int day = getTimeSlotDay( report.getTimeslotIndex());	  
+	  int month =  timeslotRepo.currentTimeslot().getStartInstant().get(DateTimeFieldType.monthOfYear());
+	  int year = timeslotRepo.currentTimeslot().getStartInstant().get(DateTimeFieldType.year());  	  
 	  
 //	  WeatherData w = new WeatherData(day, hour,report.getTimeslotIndex(), report.getTemperature(), report.getWindSpeed(),
 //			  									report.getWindDirection(), report.getCloudCover());
@@ -472,8 +483,11 @@ implements MarketManager, Initializable, Activatable
 														report.getWindDirection(), report.getCloudCover(),0);
 	  
 	  boolean t = false;
-	  WeatherDataWithPeaks www = new WeatherDataWithPeaks(day, hour,report.getTimeslotIndex(), report.getTemperature(),
-			  						report.getWindSpeed(),report.getWindDirection(), report.getCloudCover(),0,t);	  
+//	  WeatherDataWithPeaks www = new WeatherDataWithPeaks(day, hour,report.getTimeslotIndex(), report.getTemperature(),
+//			  						report.getWindSpeed(),report.getWindDirection(), report.getCloudCover(),0,t);
+	  
+	  WeatherDataWithPeaks www = new WeatherDataWithPeaks(hour, day, month, year,report.getTemperature(),report.getWindSpeed(),
+			  						report.getWindDirection(), report.getCloudCover(), 0, report.getTimeslotIndex());
 	  
 	  if(report.getTimeslotIndex() < 360) {
 		  weatherDatas.add(ww);
@@ -511,9 +525,13 @@ implements MarketManager, Initializable, Activatable
 		  t = true;
 	  }
 	  
-	  www = new WeatherDataWithPeaks(day, hour,prevWeatherReport.getTimeslotIndex(), prevWeatherReport.getTemperature(),
-			   prevWeatherReport.getWindSpeed(),prevWeatherReport.getWindDirection(), prevWeatherReport.getCloudCover()
-			   ,contextManager.getUsage(temp)/1000,t);	  
+//	  www = new WeatherDataWithPeaks(day, hour,prevWeatherReport.getTimeslotIndex(), prevWeatherReport.getTemperature(),
+//			   prevWeatherReport.getWindSpeed(),prevWeatherReport.getWindDirection(), prevWeatherReport.getCloudCover()
+//			   ,contextManager.getUsage(temp)/1000,t);	  
+	  
+	  www = new WeatherDataWithPeaks(hour, day, month, year,prevWeatherReport.getTemperature(),prevWeatherReport.getWindSpeed(),
+			  prevWeatherReport.getWindDirection(), prevWeatherReport.getCloudCover(),
+			  contextManager.getUsage(temp)/1000, prevWeatherReport.getTimeslotIndex());	 
 	  
 	  if(report.getTimeslotIndex() > 371) {
 //		  ObjectToJson.toJSONPeaks(www);
@@ -583,15 +601,22 @@ implements MarketManager, Initializable, Activatable
 		  trainingTimer = 10;		  
 	  }
 	  
-	  if((timeslotIndex-360) % 24 == 0 && timeslotIndex != 360  && timeslotIndex != 384) {
+	  if((timeslotIndex-360) % 24 == 0 && timeslotIndex != 360  && timeslotIndex != (360 + 24)) {
 		  //TODO call fit
+		  // fill weatherDataWithPeaksNOBoot with netUsage
+		  for(WeatherDataWithPeaks w : weatherDataWithPeaksNOBoot) {
+			  w.setNetUsageMWh(contextManager.getUsage(w.timeslot)/1000);
+		  }
 		  ObjectToJson.toJSONPeaks(weatherDataWithPeaksNOBoot);
 		  weatherDataWithPeaksNOBoot.clear();
 		  energyPredictor.fitData();
 		  System.out.println("\n\n\n==================\nFIT\\n==================\\n\n");
 	  }
 	  
-	
+//	  timeslotRepo.currentTimeslot().getStartInstant().get(DateTimeFieldType.monthOfYear()
+//	  System.out.println("MONTH-- " + timeslotRepo.currentTimeslot().getStartInstant().get(DateTimeFieldType.monthOfYear()));
+//	  System.out.println("Year -- " + timeslotRepo.currentTimeslot().getStartInstant().get(DateTimeFieldType.year()));
+	 	 
     log.debug(" Current timeslot is " + timeslotIndex);
     System.out.println("\n|------------------------------------|  Current timeslot is " + timeslotIndex 
     			+" |  Day: "+ getTimeSlotDay(timeslotIndex) + "  Hour: " + getTimeSlotHour(timeslotIndex));
@@ -742,7 +767,6 @@ implements MarketManager, Initializable, Activatable
             				tempHoursAhead --;
             			}
     				}
-
     			}
     				
     			visitedNodes.add(curNode);
@@ -1075,15 +1099,15 @@ public void setUsageInBoot(double[] usage,double threshold) {
 		w.setNetUsageMWh(-usage[w.getTimeslot()-24]/1000);
 	}
 	System.out.println("Threshold from Boot: " + threshold);
-	boolean t = false;
+//	boolean t = false;
 	for(WeatherDataWithPeaks w : weatherDatasPeaks) {		
 //		System.out.println("Timeslot: " +w.getTimeslot() + "  Threshold:" + threshold + "  Demand: " + Math.abs(usage[w.getTimeslot()-24]));
-		t = false;
-		if(Math.abs(usage[w.getTimeslot()-24]) > (threshold + Parameters.THRESHOLD_OFFSET)) {
-			t = true;
-		}
-		w.setPeak(t);
-		w.setNetUsageMWh(-usage[w.getTimeslot()-24]/1000);
+//		t = false;
+//		if(Math.abs(usage[w.getTimeslot()-24]) > (threshold + Parameters.THRESHOLD_OFFSET)) {
+//			t = true;
+//		}
+//		w.setPeak(t);
+		w.setNetUsageMWh(-usage[w.timeslot -24]/1000);
 	}
 }
 

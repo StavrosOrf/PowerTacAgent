@@ -25,11 +25,13 @@ public class ObjectToJson {
 			json = ow.writeValueAsString(f);
 	    	String os = System.getProperty("os.name");
 	    	if(os.equals("Windows 10")) {
-	    		BufferedWriter writer = new BufferedWriter(new FileWriter("tempFiles\\forecast24.online.json"));
+//	    		BufferedWriter writer = new BufferedWriter(new FileWriter("tempFiles\\forecast24.online.json"));
+	    		BufferedWriter writer = new BufferedWriter(new FileWriter("tempFiles\\forecast8.online.json"));
 	    		writer.write(json);		    
 			    writer.close();
 	    	}else {
-	    		BufferedWriter writer = new BufferedWriter(new FileWriter("tempFiles/forecast24.online.json"));
+//	    		BufferedWriter writer = new BufferedWriter(new FileWriter("tempFiles/forecast24.online.json"));
+	    		BufferedWriter writer = new BufferedWriter(new FileWriter("tempFiles/forecast8.online.json"));
 	    		writer.write(json);		    
 			    writer.close();
 	    	}

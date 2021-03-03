@@ -679,7 +679,7 @@ private ApplicationContext ctx;
 	    	  timer ++;	    	  
 	      }	
 	  } catch (Exception e) {
-		  System.out.println(e.toString());
+		  System.out.println(e.toString() + " "+ e.getStackTrace() );
 		  System.out.println("ERROR in MAIN !!!!!!!!!!!\n\n\n\n\n\n\n\n\n\n\n");
 		  
 	  }

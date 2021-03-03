@@ -2,24 +2,45 @@ package org.powertac.samplebroker.assistingclasses;
 
 public class WeatherData {
 
-	  private int day;	 
-	  private int hour;	  
-	  private int timeslot;	  
-	  private double temperature;
-	  private double windSpeed;
-	  private double windDirection;
-	  private double cloudCover;
+	private int hour;	  
+	private int day;	 
+	private int month;	  
+	private int year;	
+	private double temperature;
+	private double windSpeed;
+	private double windDirection;
+	private double cloudCover;
+	private int timeslot;	  
 	  
-	public WeatherData(int day, int hour,int timeslot, double temperature, double windSpeed, double windDirection,
-			double cloudCover) {
+
+	public WeatherData(int hour, int day, int month, int year, double temperature, double windSpeed,
+			double windDirection, double cloudCover, int timeslot) {
 		super();
-		this.day = day;
 		this.hour = hour;
-		this.setTimeslot(timeslot);
+		this.day = day;
+		this.month = month;
+		this.year = year;
 		this.temperature = temperature;
 		this.windSpeed = windSpeed;
 		this.windDirection = windDirection;
 		this.cloudCover = cloudCover;
+		this.timeslot = timeslot;
+	}
+
+	public int getMonth() {
+		return month;
+	}
+
+	public void setMonth(int month) {
+		this.month = month;
+	}
+
+	public int getYear() {
+		return year;
+	}
+
+	public void setYear(int year) {
+		this.year = year;
 	}
 
 	public int getDay() {
