@@ -34,7 +34,7 @@ import org.springframework.stereotype.Service;
  */
 @Service
 public class ContextManagerService
-implements Initializable,ContextManager
+implements Initializable,ContextManager /* dsad*/
 {
   static private Logger log = LogManager.getLogger(ContextManagerService.class);
 
