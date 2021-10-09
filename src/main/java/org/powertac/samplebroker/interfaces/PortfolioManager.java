@@ -31,5 +31,6 @@ public interface PortfolioManager
   public void setBalancingCosts(double imbalance);
   public Parameters getParams();
   public double getCurrentThreshold();
-  
+
+    public boolean getbState();
 }

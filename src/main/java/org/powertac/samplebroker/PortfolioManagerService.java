@@ -633,6 +633,7 @@ private ApplicationContext ctx;
                       //Damage Control by revoking all tariffs
 
                       System.out.println("SHUTDOWN!!!!!!!");
+                      shutdown();
 
                       printDemandPeaks();
                       printBalanceStats();
@@ -642,7 +643,6 @@ private ApplicationContext ctx;
                       generalTariffStrategy(timeslotIndex);
                   }
 
-	    	   		
 	        		timer = 0;
 	    	  }
 	    	  
@@ -769,9 +769,23 @@ private ApplicationContext ctx;
 		  thermal_Passed = true;
 	  }
   }
-
+//Revoke all consumption tariffs
   private void shutdown(){
 
+    for (TariffSpecification spec : customerSubscriptions.keySet()) {
+
+      if(tariffCharges.get(spec) == null) {
+        continue;
+      }
+
+      if(spec.getPowerType() == PowerType.CONSUMPTION || spec.getPowerType() == PowerType.THERMAL_STORAGE_CONSUMPTION) {
+        revokeTariff(spec);
+      }
+    }
+  }
+
+  public boolean getbState() {
+    return bState == BalanceState.SHUTDOWN;
   }
 
   private void determineBalanceState(){
@@ -815,9 +829,9 @@ private ApplicationContext ctx;
       }
 
       if (balance < Parameters.SHUTDOWN_BOUND){
+//    if (balance >100000){
           bState = BalanceState.SHUTDOWN;
-          //TODO STOP EVERYTHING (wholesale and retail)
-      }
+    }
 
   }
     
@@ -1995,8 +2009,7 @@ private int remainingActiveTariff(PowerType pt) {
 				continue;    
 			totalProfits += tariffCharges.get(spec);
 		}
-        System.out.printf("BalanceState: %s \n", bState.toString());
-        System.out.printf("Cash: % .2f \n",contextManager.getCash());
+        System.out.printf("Cash: % .2f   %s \n",contextManager.getCash(), bState.toString());
 		System.out.printf("Current Imbalance: % .2f \n",totalAssessmentBalancingCosts);
 		double tariffprofits = totalProfits;
 		totalProfits = 0;

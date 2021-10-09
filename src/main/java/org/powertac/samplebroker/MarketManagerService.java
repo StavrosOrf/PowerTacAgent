@@ -453,12 +453,16 @@ implements MarketManager, Initializable, Activatable
   @Override
   public synchronized void activate (int timeslotIndex)
   {
+
 	updateUsage(portfolioManager.collectUsage(timeslotIndex), timeslotIndex); 
 	double neededKWh = 0.0;	
 	
     log.debug(" Current timeslot is " + timeslotIndex);
     System.out.println("\n|------------------------------------|  Current timeslot is " + timeslotIndex 
     			+" |  Day: "+ getTimeSlotDay(timeslotIndex) + "  Hour: " + getTimeSlotHour(timeslotIndex));
+//      if (portfolioManager.getbState()){
+//          return;
+//      }
     for (Timeslot timeslot : timeslotRepo.enabledTimeslots()) {
       printAboutTimeslot(timeslot);
 //      System.out.println("usage record lentgh: " + broker.getUsageRecordLength());
