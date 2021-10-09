@@ -21,31 +21,31 @@ import org.springframework.context.annotation.PropertySource;
 
 /**
  * This class holds all essentials parameters of the broker
- * 
+ *
  * @author Stavros Orfanoudakis
  */
 
 @Configuration
 @PropertySource("classpath:static.properties")
 public class Parameters {
-		  
+
 	  public static int Predictor_Port = 8098;
 	  public static int timeslotMS = 5000;
-	  
+
 	  @Value("${printRatesEnabled}")
 	  public int printRatesEnabled = 0;
-	  
+
 	  public static int batchSize = 24;
-	  
-	  //retail module Parameters	
+
+	  //retail module Parameters
 	  public static int reevaluationCons = 6;
 	  public static int reevaluationStorage = 250*reevaluationCons;
 	  public static int reevaluationProduction = 4*reevaluationCons;
 	  public static int reevaluationInterruptible = 200 *reevaluationCons;
-	  
+
 	  //ThresholdOffset
 	  public static double THRESHOLD_OFFSET = 1000;
-	  	    
+
 	  //Mutation Constants
 	  public static double Ebp = 4;
 	  public static double Ep = 0.15;
@@ -61,11 +61,11 @@ public class Parameters {
 	  @Value("${productionTariffsEnabled}")
 	  public int productionTariffsEnabled = 1;
 	  public static double EwpBound = - 12;
-	  public static double UpperBoundStatic = - 0.4;
+	  public static double UpperBoundStatic = - 0.45;
 	  public static double LowerBoundRollChance = 0.85;
-	  public static double InterRateSpread = 0.015;	  	
+	  public static double InterRateSpread = 0.015;
 	  public static double UpperBoundProduction =  0.015;
-	  
+
 	  //Percentages % (0-100)
 	  @Value("${CONS_COUNT_UPPER_BOUND}")
 	  public double CONS_COUNT_UPPER_BOUND = 92.5;
@@ -79,37 +79,41 @@ public class Parameters {
 	  public double CONS_COUNT_LOWEST_BOUND = 35;
 	  @Value("${STATE_CHANGE_INTERVAL}")
 	  public double STATE_CHANGE_INTERVAL = 35;
-	 
+
+	  public static double INDEBTED_BOUND = -1000000;
+	  public static double BANKRUPT_BOUND = -2000000;
+	  public static double SHUTDOWN_BOUND = -3000000;
+
 	  public static int Ecl = timeslotMS* (4* reevaluationCons/5)*10000;
 	  public static double Ereg = 0.05;
-	  	
+
       //wholesale module Parameters
 	  public static int MAX_ITERATIONS = 1000;
 	  public static int NUM_OF_ACTIONS = 3; // must be > 1
 	  public static int NO_BID = -9999;
 	  public static boolean WH_PRINT_ON = false;
-	  
+
 	  //Strategies enabled
-//	  public static boolean C2_ENABLED = true ; 
-	  
+//	  public static boolean C2_ENABLED = true ;
+
 	  public static boolean EN_DYNAMIC = true; // whether or not dynamic mcts is enabled
-	  public static int[] DYNAMIC_THRESHOLD = {5,10,20,50}; // Threshold in which a new dynamic action 
+	  public static int[] DYNAMIC_THRESHOLD = {5,10,20,50}; // Threshold in which a new dynamic action
 	  														// will be added to the search space
-	   							    
+
 	  //Price predictor generated variables TODO
 	  public static double OBSERVED_DEVIATION = 10; //σ, will be changed in future when we implement pPredictor
 	  public static double D_MIN = -1; // Δ min minimum price multiplier , TBChanged
 	  public static double D_MAX = 1; // Δ max maximum price multiplier , TBChanged
-	  
+
 	  @Value("${MarketManagerOffset}")
 	  public double MarketManagerOffset = 30;
 	// max and min offer prices
 	  public static double buyLimitPriceMin = - 70;
 	  public static double buyLimitPriceMax = - 1;
-	  
+
 	  public static double sellLimitPriceMax = 70.0;    // other broker pays
 	  public static double sellLimitPriceMin = 0.5;    // other broker pays
-	  
+
 	  //Database related parameters
 	  public static int NUM_OF_POPULATION = 50;
 	  public static double GroundLevelDecayFactor = 0.02;

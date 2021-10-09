@@ -24,4 +24,6 @@ public interface ContextManager {
 	public double getLastActualEnergy();
 	
 	public double getUsage(int timeslot);
+
+	public double getCash();
 }

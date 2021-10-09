@@ -155,7 +155,8 @@ public double totalActualEnergy() {
 public double getUsage(int timeslot) {
 	return reportArray[timeslot];
 }
-  
-  
-  
+
+    public double getCash() {
+        return cash;
+    }
 }

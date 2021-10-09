@@ -139,7 +139,13 @@ implements PortfolioManager, Initializable, Activatable
   
   private double middleBoundOffset = 0;
   private double lowerBoundOffset = 0;
+  private double golbalBoundOffset = 0;
+  private double lowestBoundOffset = 0;
+  private double equalBoundOffset = 0;
+  private double upperBoundOffset = 0;
   private double weatherBoundOffset = 0;
+
+  private double balance = 0;
   
   private int timer = 0 ;
   
@@ -179,8 +185,17 @@ implements PortfolioManager, Initializable, Activatable
 	  NORMAL,
 	  LOW_PERCENTAGE
 	}
-  
+
+    enum BalanceState {
+        UPSTANDING,
+        INDEBTED,
+        BANKRUPT,
+        SHUTDOWN
+    }
+
   State state = State.NORMAL;
+  BalanceState bState = BalanceState.UPSTANDING;
+
   int state_duration = 0;
   
   private double LowerBoundABS ;
@@ -592,7 +607,7 @@ private ApplicationContext ctx;
 	  
 	  try {
 		  calcCapacityFees(timeslotIndex);
-		  
+
 		  if (triggerEvaluation == true && timeslotIndex > 370) {
 			  triggerEvaluationTS = timeslotIndex ;
 			  triggerEvaluation = false;
@@ -613,8 +628,20 @@ private ApplicationContext ctx;
 	      } else {    	  
 	    	  if (timer >= Parameters.reevaluationCons || timeslotIndex == triggerEvaluationTS) {
 	    	   		triggerEvaluation = false;
-	    	   		
-	    	   		generalTariffStrategy(timeslotIndex);
+
+                  if (bState == BalanceState.SHUTDOWN){
+                      //Damage Control by revoking all tariffs
+
+                      System.out.println("SHUTDOWN!!!!!!!");
+
+                      printDemandPeaks();
+                      printBalanceStats();
+                      printCompTariffs(timeslotIndex);
+                      resetGlobalCounters();
+                  }else{
+                      generalTariffStrategy(timeslotIndex);
+                  }
+
 	    	   		
 	        		timer = 0;
 	    	  }
@@ -640,7 +667,8 @@ private ApplicationContext ctx;
 		printBalanceStats();		
 		calculateCustomerCounts();
 		determineState();		
-		
+		determineBalanceState();
+
 		for (TariffSpecification spec : customerSubscriptions.keySet()) {
 			
 			if(tariffCharges.get(spec) == null) {
@@ -741,6 +769,57 @@ private ApplicationContext ctx;
 		  thermal_Passed = true;
 	  }
   }
+
+  private void shutdown(){
+
+  }
+
+  private void determineBalanceState(){
+      //TODO  The states here can be better determined if we could know the reason of our losses etc Balancing /Capacity fees
+//      IF Balancing : increase rate prices
+//      IF Capacity : lower the market share bounds
+
+      if (bState == BalanceState.UPSTANDING){
+
+          if (balance < Parameters.INDEBTED_BOUND)
+              bState = BalanceState.INDEBTED;
+
+      }else if (bState == BalanceState.INDEBTED){
+
+          if (balance < Parameters.BANKRUPT_BOUND)
+              bState = BalanceState.BANKRUPT;
+
+          if (balance > 0) {
+              bState = BalanceState.UPSTANDING;
+              LowerBoundABS = params.LowerBoundStaticAbsolute;
+              LowerBound = Parameters.LowerBoundStatic;
+          }
+      }else if (bState == BalanceState.BANKRUPT){
+
+          if (balance > Parameters.INDEBTED_BOUND)
+              bState = BalanceState.INDEBTED;
+      }
+
+      if (bState == BalanceState.UPSTANDING) {
+          golbalBoundOffset = 0;
+
+      } else if (bState == BalanceState.INDEBTED) {
+          golbalBoundOffset = -7.5;
+          LowerBoundABS = -0.15;
+          LowerBound = -0.18;
+
+      } else if (bState == BalanceState.BANKRUPT) {
+          golbalBoundOffset = -20;
+          LowerBound = -0.33;
+          LowerBoundABS = -0.3;
+      }
+
+      if (balance < Parameters.SHUTDOWN_BOUND){
+          bState = BalanceState.SHUTDOWN;
+          //TODO STOP EVERYTHING (wholesale and retail)
+      }
+
+  }
     
   private void resetGlobalCounters() {
 		totalEnergyused = 0;
@@ -791,7 +870,7 @@ private ApplicationContext ctx;
 		double enemyBestRate = findBestCompetitiveTariff(PowerType.CONSUMPTION,false);
 		TariffSpecification tempTariff = new TariffSpecification(brokerContext.getBroker(), PowerType.CONSUMPTION);
 
-		if(calculatePercentage(consumptionCustomers,consumptionCustomersTotal) > (params.CONS_COUNT_EQUAL_BOUND + weatherBoundOffset)
+		if(calculatePercentage(consumptionCustomers,consumptionCustomersTotal) > (params.CONS_COUNT_EQUAL_BOUND + weatherBoundOffset + golbalBoundOffset)
 				&& (Math.abs(enemyBestRate - myBestRate) <0.01 || enemyBestRate == -1) 
 				&& remainingActiveTariff(PowerType.CONSUMPTION ) !=  0){
 
@@ -822,7 +901,7 @@ private ApplicationContext ctx;
 	  setMonthBoundedVariables();
 	  
       //when we have  the monopoly revoke all tariffs that are below LowerBound
-      if(customerPercentage > params.CONS_COUNT_UPPER_BOUND + weatherBoundOffset ) {
+      if(customerPercentage > params.CONS_COUNT_UPPER_BOUND + weatherBoundOffset + golbalBoundOffset ) {
       	ArrayList<TariffSpecification> list = new ArrayList<TariffSpecification>();
       	double enemyBestRate = findBestCompetitiveTariff(PowerType.CONSUMPTION,false);
       	for (TariffSpecification t : tariffCharges.keySet()) {
@@ -844,7 +923,7 @@ private ApplicationContext ctx;
       boolean publishTariff = true;
 		//when we have  the monopoly revoke the cheapest tariff
 
-      if ( customerPercentage > params.CONS_COUNT_MIDDLE_BOUND + middleBoundOffset + weatherBoundOffset ) {
+      if ( customerPercentage > params.CONS_COUNT_MIDDLE_BOUND + middleBoundOffset + weatherBoundOffset + golbalBoundOffset ) {
 			
 			TariffSpecification spec = findMyBestTariff(PowerType.CONSUMPTION);
 			if (spec != null ) {
@@ -874,7 +953,7 @@ private ApplicationContext ctx;
       }
       
 		
-      if( customerPercentage < params.CONS_COUNT_LOWER_BOUND + lowerBoundOffset + weatherBoundOffset ) {
+      if( customerPercentage < params.CONS_COUNT_LOWER_BOUND + lowerBoundOffset + weatherBoundOffset + golbalBoundOffset) {
 //		  System.out.println("Under 45% Bound:");
     	  double enemyBestRate = findBestCompetitiveTariff(PowerType.CONSUMPTION,false);    
     	  double multiplier = 1;
@@ -922,13 +1001,13 @@ private ApplicationContext ctx;
 
   private void determineState() {
 	  double customerPercentage = calculatePercentage(consumptionCustomers, consumptionCustomersTotal) ;
-      if (customerPercentage > 50 + weatherBoundOffset) {
+      if (customerPercentage > 50 + weatherBoundOffset + golbalBoundOffset) {
     	  state = State.NORMAL;
     	  state_duration = 0;
     	  return;
       }
       
-      if( customerPercentage < params.CONS_COUNT_LOWEST_BOUND + lowerBoundOffset + weatherBoundOffset  ) {
+      if( customerPercentage < params.CONS_COUNT_LOWEST_BOUND + lowerBoundOffset + weatherBoundOffset + golbalBoundOffset ) {
     	  if(state == State.NORMAL) {
     		  state_duration += Parameters.reevaluationCons;  
     		  System.out.println("UNDER 30%: " + state_duration + " timeslots");
@@ -1026,7 +1105,7 @@ private int remainingActiveTariff(PowerType pt) {
   //calculate capacity fees
   private void calcCapacityFees(int timeslotIndex) {
 	  
-	  
+	  balance = contextManager.getCash();
 	  double realThreshold = 0;
 	  if(timeslotIndex == 361) {
 		  for(int i = 0; i<336;i++) {
@@ -1125,7 +1204,7 @@ private int remainingActiveTariff(PowerType pt) {
 		  
 		  ctx = new AnnotationConfigApplicationContext(Parameters.class);
 		  params = ctx.getBean(Parameters.class);
-		  LowerBoundABS = params.LowerBoundStaticAbsolute;
+//		  LowerBoundABS = params.LowerBoundStaticAbsolute;
 		  
 		  if(timeslotIndex > 1500) {
 			  LowerBound -= 0.005;
@@ -1916,6 +1995,8 @@ private int remainingActiveTariff(PowerType pt) {
 				continue;    
 			totalProfits += tariffCharges.get(spec);
 		}
+        System.out.printf("BalanceState: %s \n", bState.toString());
+        System.out.printf("Cash: % .2f \n",contextManager.getCash());
 		System.out.printf("Current Imbalance: % .2f \n",totalAssessmentBalancingCosts);
 		double tariffprofits = totalProfits;
 		totalProfits = 0;
