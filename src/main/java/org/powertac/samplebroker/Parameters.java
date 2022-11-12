@@ -118,6 +118,5 @@ public class Parameters {
 	  public static int NUM_OF_POPULATION = 50;
 	  public static double GroundLevelDecayFactor = 0.02;
 	  public static double TourLevelDecayFactor = 0.04;
-
 }
 
