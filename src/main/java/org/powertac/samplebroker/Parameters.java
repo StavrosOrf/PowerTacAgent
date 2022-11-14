@@ -55,7 +55,7 @@ public class Parameters {
 	  public static double LowerBoundChangerFees = 50000;
 	  public static double LowerBoundStatic = - 0.15;
 	  @Value("${LowerBoundStaticAbsolute}")
-	  public double LowerBoundStaticAbsolute = - 0.115;
+	  public double LowerBoundStaticAbsolute = - 0.112;
 	  @Value("${newRateCalculatorEnabled}")
 	  public int newRateCalculatorEnabled = 0;
 	  @Value("${productionTariffsEnabled}")
@@ -70,19 +70,19 @@ public class Parameters {
 	  @Value("${CONS_COUNT_UPPER_BOUND}")
 	  public double CONS_COUNT_UPPER_BOUND = 92.5;
 	  @Value("${CONS_COUNT_MIDDLE_BOUND}")
-	  public double CONS_COUNT_MIDDLE_BOUND = 65;
+	  public double CONS_COUNT_MIDDLE_BOUND = 68.5;
 	  @Value("${CONS_COUNT_EQUAL_BOUND}")
-	  public double CONS_COUNT_EQUAL_BOUND = 55;
+	  public double CONS_COUNT_EQUAL_BOUND = 57;
 	  @Value("${CONS_COUNT_LOWER_BOUND}")
-	  public double CONS_COUNT_LOWER_BOUND = 45;
+	  public double CONS_COUNT_LOWER_BOUND = 47;
 	  @Value("${CONS_COUNT_LOWEST_BOUND}")
-	  public double CONS_COUNT_LOWEST_BOUND = 35;
+	  public double CONS_COUNT_LOWEST_BOUND = 32;
 	  @Value("${STATE_CHANGE_INTERVAL}")
 	  public double STATE_CHANGE_INTERVAL = 35;
 
-	  public static double INDEBTED_BOUND = -1000000;
-	  public static double BANKRUPT_BOUND = -2000000;
-	  public static double SHUTDOWN_BOUND = -3000000;
+	  public static double INDEBTED_BOUND = -900000;
+	  public static double BANKRUPT_BOUND = -1750000;
+	  public static double SHUTDOWN_BOUND = -2500000;
 
 	  public static int Ecl = timeslotMS* (4* reevaluationCons/5)*10000;
 	  public static double Ereg = 0.05;
@@ -91,6 +91,8 @@ public class Parameters {
 	  public static int MAX_ITERATIONS = 1000;
 	  public static int NUM_OF_ACTIONS = 3; // must be > 1
 	  public static int NO_BID = -9999;
+	  public static int HALF_BID = -9998;
+	  public static int FULL_BID = -9997;
 	  public static boolean WH_PRINT_ON = false;
 
 	  //Strategies enabled

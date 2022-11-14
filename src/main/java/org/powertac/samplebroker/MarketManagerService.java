@@ -493,6 +493,8 @@ implements MarketManager, Initializable, Activatable
   public static int MAX_ITERATIONS = Parameters.MAX_ITERATIONS;
   public static int NUM_OF_ACTIONS = Parameters.NUM_OF_ACTIONS;
   public static int NO_BID = Parameters.NO_BID;
+  public static int HALF_BID = Parameters.HALF_BID;	
+public static int FULL_BID = Parameters.FULL_BID;
  
   public static double OBSERVED_DEVIATION = Parameters.OBSERVED_DEVIATION;
   public static double D_MIN = Parameters.D_MIN;
@@ -510,6 +512,8 @@ implements MarketManager, Initializable, Activatable
     //find how many MWH are already available in given timeslot
     MarketPosition posn = broker.getBroker().findMarketPositionByTimeslot(timeslotBidding);
     double offset = portfolioManager.getParams().MarketManagerOffset;
+    int timeslot_now = timeslotBidding-currentTimeslot-1; //	
+
     
     if (posn != null)
       neededMWh -= posn.getOverallBalance();
@@ -545,7 +549,8 @@ implements MarketManager, Initializable, Activatable
     double CavgUnit = 0; // Average Unit Cost 
     
     //Initialize 
-	Node root = new Node(0, null, 0, timeslotBidding-currentTimeslot);
+//	Node root = new Node(0, null, 0, timeslotBidding-currentTimeslot);
+    Node root = new Node(0, null, 0, timeslot_now);
 	//computeLimitPrice function will be replaced by pPredictor
 	root.generateRootsKids(computeLimitPrice(timeslotBidding, neededMWh));
     
