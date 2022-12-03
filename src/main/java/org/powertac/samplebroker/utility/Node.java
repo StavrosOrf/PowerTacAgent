@@ -70,10 +70,15 @@ public class Node{
 		  
 		  for (int i = 0; i < NUM_OF_ACTIONS; i++) {
 			  double bid = minPrice + step*i;
-			  
 			  Node n = new Node(bid, this, 0, hoursAhead);
 			  children.add(n);
 		  }
+		 for (int i = 0; i < NUM_OF_ACTIONS; i++) {
+			  double halfbid = (minPrice + step*i)/2;
+			  Node n = new Node(halfbid, this, 0, hoursAhead);
+			  children.add(n);
+		  }
+		  
 		  // add a NO_BID action
 		  if(hoursAhead > 1) {
 			  Node n = new Node(NO_BID, this, 0, hoursAhead);
@@ -88,11 +93,18 @@ public class Node{
 		  
 		  for (int i = 0; i < NUM_OF_ACTIONS; i++) {
 			  double bid = minPrice + step*i;
-			  if(bid > 0 ) {
+			  if(bid > 0) {
 				  continue;
 			  }
-
 			  Node n = new Node(bid, this, 0, hoursAhead - 1);
+			  children.add(n);
+		  }
+		  for (int i = 0; i < NUM_OF_ACTIONS; i++) {
+			  double halfbid = (minPrice + step*i)/2;
+			  if(halfbid > 0) {
+				  continue;
+			  }
+			  Node n = new Node(halfbid, this, 0, hoursAhead - 1);
 			  children.add(n);
 		  }
 		  
@@ -107,7 +119,6 @@ public class Node{
 				 return true;
 			  }
 		  }
-		  
 		  return false;
 	  }
 	  
